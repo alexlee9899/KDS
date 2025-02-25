@@ -1,4 +1,4 @@
-# Welcome to your Expo app 👋
+# Welcome to My KDS app 👋
 
 This is an Expo project created with `create-expo-app` and integrated with React Native.
 
