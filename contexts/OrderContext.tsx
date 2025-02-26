@@ -7,88 +7,98 @@ import React, {
 } from "react";
 import { FormattedOrder } from "../services/types";
 import { OrderService } from "../services/orderService";
-import { EventEmitter } from "../utils/eventEmitter";
 
 interface OrderContextType {
   orders: FormattedOrder[];
   loading: boolean;
   error: string | null;
-  fetchOrders: () => Promise<void>;
-  setOrders: (orders: FormattedOrder[]) => void;
   removeOrder: (orderId: string) => void;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<FormattedOrder[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 添加 TCP 订单监听
+  // 初始化 TCP 服务和设置回调 - 只执行一次
   useEffect(() => {
-    // 初始化 TCP 服务器
-    OrderService.initTCPServer();
+    const initTCPSystem = async () => {
+      try {
+        console.log("正在初始化TCP系统...");
+        setLoading(true);
 
-    // 监听新订单事件
-    const subscription = EventEmitter.addListener("newOrder", (newOrder) => {
-      setOrders((prev) => [...prev, newOrder]);
-    });
+        // 步骤1: 绑定TCP服务器
+        await OrderService.bindTCPServer();
+        console.log("TCP服务器绑定成功");
 
-    return () => subscription.remove();
-  }, []);
+        // 步骤2: 加载已保存的TCP订单 (如果有)
+        const savedOrders = await OrderService.getTCPOrders();
+        setOrders(savedOrders);
 
+        // 步骤3: 设置TCP数据回调，当新订单到达时更新状态
+        OrderService.setTCPCallback((newOrder) => {
+          console.log("收到新TCP订单:", newOrder.id);
+
+          // 更新React状态中的订单列表
+          setOrders((prev) => {
+            // 检查订单是否已存在
+            const exists = prev.some((order) => order.id === newOrder.id);
+            if (!exists) {
+              return [...prev, newOrder]; // 添加新订单
+            }
+            return prev; // 如果已存在则不变
+          });
+        });
+
+        setLoading(false);
+      } catch (error) {
+        console.error("TCP初始化失败:", error);
+        setError("TCP服务器初始化失败");
+        setLoading(false);
+      }
+    };
+
+    // 执行初始化
+    initTCPSystem();
+
+    // 清理函数 - 组件卸载时关闭TCP服务器
+    return () => {
+      console.log("关闭TCP服务器...");
+      OrderService.closeTCPServer();
+    };
+  }, []); // 空依赖数组，只执行一次
+
+  // 删除订单
   const removeOrder = useCallback((orderId: string) => {
+    // 从React状态中移除
     setOrders((prevOrders) =>
       prevOrders.filter((order) => order.id !== orderId)
     );
+
+    // 同时从服务层和存储中移除
+    OrderService.removeTCPOrder(orderId);
   }, []);
-
-  const fetchOrders = useCallback(async () => {
-    try {
-      // 只在首次加载时显示loading状态
-      if (orders.length === 0) {
-        setLoading(true);
-      }
-
-      const formattedOrders = await OrderService.getFormattedOrderDetails();
-
-      // 检查是否有新订单
-      const existingOrderIds = new Set(orders.map((order) => order.id));
-      const newOrders = formattedOrders.filter(
-        (order) =>
-          !existingOrderIds.has(order.id) && // 筛选新订单
-          order.pickupMethod !== "TEMP" // 排除 TEMP 订单
-      );
-
-      // 只在有新订单时更新状态
-      if (newOrders.length > 0) {
-        setOrders((prevOrders) => [...prevOrders, ...newOrders]);
-        console.log("发现新订单:", newOrders.length, "个");
-      }
-    } catch (error) {
-      setError("获取订单失败");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [orders]); // 添加 orders 作为依赖
 
   return (
     <OrderContext.Provider
-      value={{ orders, loading, error, fetchOrders, setOrders, removeOrder }}
+      value={{
+        orders,
+        loading,
+        error,
+        removeOrder,
+      }}
     >
       {children}
     </OrderContext.Provider>
   );
-};
+}
 
 export const useOrders = () => {
   const context = useContext(OrderContext);
   if (context === undefined) {
-    throw new Error("useOrders must be used within an OrderProvider");
+    throw new Error("useOrders必须在OrderProvider内部使用");
   }
   return context;
 };

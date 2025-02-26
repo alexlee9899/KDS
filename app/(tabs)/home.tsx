@@ -17,23 +17,23 @@ const CARD_MARGIN = 8;
 const CARDS_PER_ROW = 3;
 
 export default function HomeScreen() {
-  const { orders, loading, error, fetchOrders } = useOrders();
+  const { orders, loading, error, removeOrder } = useOrders();
   const pollingRef = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    fetchOrders();
+  // useEffect(() => {
+  //   fetchOrders();
 
-    // 只在非TCP模式下进行轮询
-    if (!OrderService.IsTCPMode) {
-      pollingRef.current = setInterval(fetchOrders, 5000);
-    }
+  //   // 只在非TCP模式下进行轮询
+  //   if (!OrderService.IsTCPMode) {
+  //     pollingRef.current = setInterval(fetchOrders, 5000);
+  //   }
 
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-      }
-    };
-  }, [fetchOrders]);
+  //   return () => {
+  //     if (pollingRef.current) {
+  //       clearInterval(pollingRef.current);
+  //     }
+  //   };
+  // }, [fetchOrders]);
 
   if (loading) {
     return (

@@ -10,6 +10,7 @@ import { FormattedOrder } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
+import { ConfirmModal } from "./ConfirmModal";
 
 interface OrderCardProps {
   order: FormattedOrder;
@@ -25,6 +26,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const [completedItems, setCompletedItems] = useState<{
     [key: string]: boolean;
   }>({});
+  const [showDoneConfirm, setShowDoneConfirm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const handleItemClick = (itemId: string) => {
     if (disabled) return;
@@ -34,8 +37,41 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     }));
   };
 
+  const handleDoneConfirm = () => {
+    setShowDoneConfirm(false);
+    // 这里添加完成订单的逻辑
+    console.log(`Order ${order.id} marked as done`);
+  };
+
+  const handleCancelConfirm = () => {
+    setShowCancelConfirm(false);
+    // 这里添加取消订单的逻辑
+    console.log(`Order ${order.id} cancelled`);
+  };
+
   return (
     <View style={[styles.orderCard, style]}>
+      <ConfirmModal
+        visible={showDoneConfirm}
+        title="Confirm Completion"
+        message="Are you sure you want to mark this order as complete?"
+        confirmText="Confirm"
+        cancelText="Cancel"
+        onConfirm={handleDoneConfirm}
+        onCancel={() => setShowDoneConfirm(false)}
+      />
+
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Confirm Cancellation"
+        message="Are you sure you want to cancel this order?"
+        confirmText="Yes, Cancel Order"
+        cancelText="No"
+        onConfirm={handleCancelConfirm}
+        onCancel={() => setShowCancelConfirm(false)}
+        isDanger={true}
+      />
+
       <View style={styles.header}>
         <Text style={styles.orderId}>Order #{order.id}</Text>
         {!disabled && <OrderTimer orderId={order.id} />}
@@ -70,8 +106,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       {!disabled && (
         <OrderActions
           orderId={order.id}
-          onDone={() => {}}
-          onCancel={() => {}}
+          onDone={() => setShowDoneConfirm(true)}
+          onCancel={() => setShowCancelConfirm(true)}
         />
       )}
     </View>

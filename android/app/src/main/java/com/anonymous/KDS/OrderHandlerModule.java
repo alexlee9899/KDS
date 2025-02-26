@@ -24,7 +24,9 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
     // }
 
     private static final String TAG = "OrderHandlerModule";
-
+    // private ReactApplicationContext appContext;
+    // private Callback OrderCallbackFunct;
+    private OrderServer Server; // 添加一个正确的类成员变量
     @Override
     public String getName(){
         return "OrderHandlerModule";
@@ -45,18 +47,18 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
         super(reactContext);
         this.appContext = reactContext;
 
-        Log.d("OrderHandlerModule", "=== OrderHandlerModule Initialization ===");
-        Log.d("OrderHandlerModule", "Creating OrderServer instance...");
-        OrderServer Server = new OrderServer();
-
-        Log.d("OrderHandlerModule", "Starting TCP server...");
-        Server.startServer(this);
-        Log.d("OrderHandlerModule", "Module initialization completed");
+        Log.d(TAG, "=== OrderHandlerModule Initialization ===");
+        Log.d(TAG, "Creating OrderServer instance...");
+        this.Server = new OrderServer(); // 使用类成员变量
+        
+        Log.d(TAG, "Starting TCP server...");
+        this.Server.startServer(this);
+        Log.d(TAG, "Module initialization completed");
         
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> {
-                Log.d("OrderHandlerModule", "Shutting down server");
-                Server.stopServer();
+                Log.d(TAG, "Shutting down server");
+                this.Server.stopServer();
             })
         );
     }
@@ -209,6 +211,17 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
         return null;
     }
 
-    
+    @ReactMethod
+    public void closeServer() {
+        try {
+            if (this.Server != null) {
+                this.Server.stopServer();
+                this.Server = null;
+            }
+            Log.d(TAG, "TCP server closed successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error closing TCP server: " + e.getMessage());
+        }
+    }
 
 }

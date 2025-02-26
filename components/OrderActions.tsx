@@ -44,10 +44,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   doneButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#69ab6b",
   },
   cancelButton: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#272020",
   },
   buttonText: {
     color: "white",

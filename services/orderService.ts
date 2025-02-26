@@ -36,6 +36,8 @@ export class OrderService {
   private static async saveTCPOrders(orders: FormattedOrder[]) {
     try {
       await AsyncStorage.setItem(this.TCP_ORDERS_KEY, JSON.stringify(orders));
+      // 更新内存中的订单列表
+      this.tcpOrders = orders;
     } catch (error) {
       console.error('保存订单失败:', error);
     }
@@ -54,7 +56,7 @@ export class OrderService {
         EventEmitter.emit('newOrder', order);
         console.log('订单已添加并保存，当前总数:', orders.length);
       } else {
-        console.log('订单已存在，ID:', order.id);
+        console.log('订单已存在,ID:', order.id);
       }
     } catch (error) {
       console.error('添加订单失败:', error);
@@ -78,37 +80,75 @@ export class OrderService {
     }
   }
 
-  // 初始化TCP服务器
-  static async initTCPServer() {
+  // 拆分出 bind 初始化
+  static async bindTCPServer() {
     try {
       console.log('正在初始化TCP服务器...');
-      await this.orderModule.Bind();
-      
-      this.orderModule.setOrderCallback(async (orderData) => {
-        console.log('收到TCP订单:', orderData);
-        const formattedOrder = this.formatTCPOrder(orderData);
-        await this.addTCPOrder(formattedOrder);
-      });
-      
+      await this.orderModule.bind();
       this.isTCPMode = true;
       console.log('TCP服务器初始化成功');
+      
+      // 初始化时从AsyncStorage加载已有订单
+      this.tcpOrders = await this.loadTCPOrders();
+      
+      return true;
     } catch (error) {
       console.error('TCP服务器初始化失败:', error);
       this.isTCPMode = false;
+      throw error;
+    }
+  }
+
+  // 单独的设置回调函数
+  static setTCPCallback(callback: (orderData: FormattedOrder) => void) {
+    try {
+      console.log('设置TCP订单回调...');
+      
+      this.orderModule.setOrderCallback(async (orderData) => {
+        console.log('收到原始TCP订单数据:', orderData);
+        
+        // 格式化订单数据
+        const formattedOrder = this.formatTCPOrder(orderData);
+        
+        // 添加到本地存储
+        await this.addTCPOrder(formattedOrder);
+        
+        // 调用外部回调
+        callback(formattedOrder);
+      });
+    } catch (error) {
+      console.error('设置TCP回调失败:', error);
+      throw error;
     }
   }
 
   // 格式化 TCP 订单数据
   private static formatTCPOrder(orderData: any): FormattedOrder {
-    return {
-      id: orderData.orderId || String(Date.now()),
-      pickupMethod: 'TCP',
-      pickupTime: new Date().toLocaleTimeString(),
-      items: orderData.items || [{
-            "name": "薯条",
-            "quantity": 1
+    try {
+      // 确保有订单ID
+      const orderId = orderData.orderId || orderData.id || String(Date.now());
+      
+      return {
+        id: orderId,
+        pickupMethod: 'TCP',
+        pickupTime: new Date().toLocaleTimeString(),
+        items: Array.isArray(orderData.items) ? orderData.items.map((item: any) => ({
+          name: item.name || '未知商品',
+          quantity: Number(item.quantity) || 1
+        })) : [{
+          name: "默认商品",
+          quantity: 1
         }]
-    };
+      };
+    } catch (error) {
+      console.error('格式化订单数据失败:', error);
+      return {
+        id: String(Date.now()),
+        pickupMethod: 'TCP_ERROR',
+        pickupTime: new Date().toLocaleTimeString(),
+        items: [{ name: "数据错误", quantity: 1 }]
+      };
+    }
   }
 
   // 获取 token
@@ -258,7 +298,8 @@ export class OrderService {
   // 获取格式化的订单信息
   static async getFormattedOrderDetails(): Promise<FormattedOrder[]> {
     if (this.isTCPMode) {
-      return this.tcpOrders;  // 返回存储的 TCP 订单
+      // 使用最新的内存数据，而不是重新加载
+      return this.tcpOrders;
     } else {
       return await this.getOrdersFromServer();
     }
@@ -345,4 +386,17 @@ export class OrderService {
   static removeOrder(orderId: string) {
     this.tcpOrders = this.tcpOrders.filter(order => order.id !== orderId);
   }
+
+  // 关闭 TCP 服务器
+  static async closeTCPServer() {
+    try {
+      console.log('正在关闭 TCP 服务器...');
+      await this.orderModule.closeServer();
+      console.log('TCP 服务器已关闭');
+    } catch (error) {
+      console.error('关闭 TCP 服务器失败:', error);
+      throw error;
+    }
+  }
+
 } 
