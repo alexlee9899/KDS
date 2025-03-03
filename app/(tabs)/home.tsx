@@ -18,7 +18,6 @@ const CARDS_PER_ROW = 3;
 
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder } = useOrders();
-  const pollingRef = useRef<NodeJS.Timeout>();
 
   // useEffect(() => {
   //   fetchOrders();
@@ -64,7 +63,13 @@ export default function HomeScreen() {
       <Text style={styles.title}>New Orders ({orders.length})</Text>
       <View style={styles.cardsContainer}>
         {orders.map((order) => (
-          <OrderCard key={order.id} order={order} style={styles.cardStyle} />
+          <OrderCard
+            key={order.id}
+            order={order}
+            style={styles.cardStyle}
+            onOrderComplete={removeOrder}
+            onOrderCancel={removeOrder}
+          />
         ))}
       </View>
     </ScrollView>

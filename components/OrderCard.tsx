@@ -16,12 +16,16 @@ interface OrderCardProps {
   order: FormattedOrder;
   style?: object;
   disabled?: boolean;
+  onOrderComplete?: (orderId: string) => void;
+  onOrderCancel?: (orderId: string) => void;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   style,
   disabled = false,
+  onOrderComplete,
+  onOrderCancel,
 }) => {
   const [completedItems, setCompletedItems] = useState<{
     [key: string]: boolean;
@@ -39,41 +43,47 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const handleDoneConfirm = () => {
     setShowDoneConfirm(false);
-    // 这里添加完成订单的逻辑
-    console.log(`Order ${order.id} marked as done`);
+    // 调用完成订单的回调
+    if (onOrderComplete) {
+      onOrderComplete(order.id);
+    }
   };
 
   const handleCancelConfirm = () => {
     setShowCancelConfirm(false);
-    // 这里添加取消订单的逻辑
-    console.log(`Order ${order.id} cancelled`);
+    // 调用取消订单的回调
+    if (onOrderCancel) {
+      onOrderCancel(order.id);
+    }
   };
 
   return (
     <View style={[styles.orderCard, style]}>
       <ConfirmModal
         visible={showDoneConfirm}
-        title="Confirm Completion"
-        message="Are you sure you want to mark this order as complete?"
-        confirmText="Confirm"
-        cancelText="Cancel"
+        title="complete order"
+        message={`confirm complete order #${order.id}?`}
+        confirmText="complete"
+        cancelText="cancel"
         onConfirm={handleDoneConfirm}
         onCancel={() => setShowDoneConfirm(false)}
       />
 
       <ConfirmModal
         visible={showCancelConfirm}
-        title="Confirm Cancellation"
-        message="Are you sure you want to cancel this order?"
-        confirmText="Yes, Cancel Order"
-        cancelText="No"
+        title="cancel order"
+        message={`confirm cancel order #${order.id}?`}
+        confirmText="cancel"
+        cancelText="cancel"
         onConfirm={handleCancelConfirm}
         onCancel={() => setShowCancelConfirm(false)}
-        isDanger={true}
+        isDanger
       />
 
       <View style={styles.header}>
-        <Text style={styles.orderId}>Order #{order.id}</Text>
+        <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">
+          Order #{order.id}
+        </Text>
         {!disabled && <OrderTimer orderId={order.id} />}
       </View>
 
@@ -140,6 +150,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#1a1a1a",
+    flexShrink: 1, // 允许文本缩小
+    flexWrap: "wrap", // 允许文本换行
+    flex: 1, // 占据可用空间
   },
   pickupMethod: {
     fontSize: 14,

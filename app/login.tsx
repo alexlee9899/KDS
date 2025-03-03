@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
@@ -19,7 +20,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("错误", "请输入邮箱和密码");
+      Alert.alert("Please enter email and password");
       return;
     }
 
@@ -29,10 +30,10 @@ export default function LoginScreen() {
       if (result.success) {
         router.replace("/(tabs)/home");
       } else {
-        Alert.alert("登录失败", result.error);
+        Alert.alert("Fail to login", result.error);
       }
     } catch (error) {
-      Alert.alert("错误", "登录失败，请重试");
+      Alert.alert("Error", "Fail to login");
     } finally {
       setLoading(false);
     }
@@ -40,7 +41,14 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>KDS System</Text>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("../assets/images/login.jpg")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.title}>Welcome to Login</Text>
+      </View>
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
@@ -81,13 +89,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     padding: 20,
     justifyContent: "center",
+    width: "80%",
+    alignSelf: "center",
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#333",
     textAlign: "center",
-    marginBottom: 40,
   },
   inputContainer: {
     backgroundColor: "white",
@@ -119,6 +137,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
+    width: "30%",
+    alignSelf: "center",
   },
   buttonDisabled: {
     backgroundColor: "#999",

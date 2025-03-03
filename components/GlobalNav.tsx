@@ -40,7 +40,12 @@ export default function GlobalNav() {
         >
           <Text style={styles.buttonText}>Order History</Text>
         </TouchableOpacity>
-
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => router.push("/(tabs)/settings")}
+        >
+          <Text style={styles.buttonText}>Settings</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={handleLogout}>
           <Text style={styles.buttonText}>Logout</Text>
         </TouchableOpacity>
