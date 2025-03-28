@@ -71,23 +71,32 @@ public class OrderServer {
                 BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)
             ) {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    Log.d(TAG, "收到数据: " + line);
-                    
-                    try {
-                        // 处理订单
-                        orderModule.AddOrder(line);
-                        
-                        // 发送确认消息
-                        out.println("OK");
-                        out.flush();
-                        
-                    } catch (Exception e) {
-                        Log.e(TAG, "处理订单时出错: " + e.getMessage());
-                        out.println("ERROR: " + e.getMessage());
-                        out.flush();
+                String message;
+                StringBuilder b = new StringBuilder();
+                while ((message = in.readLine()) != null) {
+                    // Log.d(TAG, "收到数据行: " + message);
+                    if (message.equalsIgnoreCase("end")) {
+                        out.println("ok");
+                        break;
                     }
+                    b.append(message);
+                }
+                
+                String completeData = b.toString();
+                Log.d(TAG, "完整客户端请求 = " + completeData);
+                
+                try {
+                    // 处理完整的订单数据
+                    orderModule.AddOrder(completeData);
+                    
+                    // 发送确认消息
+                    out.println("OK");
+                    out.flush();
+                    
+                } catch (Exception e) {
+                    Log.e(TAG, "处理订单时出错: " + e.getMessage());
+                    out.println("ERROR: " + e.getMessage());
+                    out.flush();
                 }
                 
             } catch (IOException e) {

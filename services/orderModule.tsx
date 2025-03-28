@@ -25,22 +25,19 @@ class OrderModule {
   private handleIncomingData = (data: any) => {
     console.log("收到TCP数据:", data);
     this.nativeModule.BindCallback(this.handleIncomingData); //??
-
-    if (data === "test call added") {
-      console.log("测试调用成功");
-      return;
-    }
-
+    console.log("data:", data);
     // 预检查是否是JSON格式
     if (typeof data === "string") {
       try {
-        const isJSON = data.startsWith("{") && data.endsWith("}");
+        console.log("data:", data);
+        const trimmedData = data.trim(); // 去除前后空白字符
+        const isJSON = trimmedData.startsWith("{") && trimmedData.endsWith("}");
         if (!isJSON) {
           console.error("收到非JSON格式数据:", data);
           return;
         }
 
-        const orderData = JSON.parse(data);
+        const orderData = JSON.parse(trimmedData);
 
         // 检查数据结构
         if (!orderData || typeof orderData !== "object") {
@@ -71,6 +68,21 @@ class OrderModule {
     } catch (error) {
       console.error("关闭TCP服务器失败:", error);
       throw error;
+    }
+  }
+
+  // 添加发送TCP数据的方法
+  public async sendTCPData(targetIP: string, data: any): Promise<boolean> {
+    try {
+      // 检查原生模块是否存在sendTCPData方法
+      if (this.nativeModule && this.nativeModule.sendTCPData) {
+        return await this.nativeModule.sendTCPData(targetIP, data);
+      }
+      console.warn("原生模块未实现sendTCPData方法");
+      return false;
+    } catch (error) {
+      console.error(`发送TCP数据到${targetIP}失败:`, error);
+      return false;
     }
   }
 }

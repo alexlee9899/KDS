@@ -35,12 +35,6 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <Text style={styles.modalText}>{message}</Text>
           <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={[styles.modalButton, styles.cancelModalButton]}
-              onPress={onCancel}
-            >
-              <Text style={styles.cancelButtonText}>{cancelText}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[
                 styles.modalButton,
                 isDanger ? styles.dangerButton : styles.confirmModalButton,
@@ -48,6 +42,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onPress={onConfirm}
             >
               <Text style={styles.modalButtonText}>{confirmText}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelModalButton]}
+              onPress={onCancel}
+            >
+              <Text style={styles.cancelButtonText}>{cancelText}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     width: "60%",
   },
   modalButton: {

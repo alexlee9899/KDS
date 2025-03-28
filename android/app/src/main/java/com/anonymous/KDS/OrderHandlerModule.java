@@ -16,6 +16,9 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.Callback;
 import android.util.Log;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.io.PrintWriter;
 
 public class OrderHandlerModule extends ReactContextBaseJavaModule{
 
@@ -222,6 +225,26 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
         } catch (Exception e) {
             Log.e(TAG, "Error closing TCP server: " + e.getMessage());
         }
+    }
+
+    @ReactMethod
+    public void sendTCPData(String targetIP, String data, Promise promise) {
+        new Thread(() -> {
+            Socket socket = null;
+            try {
+                socket = new Socket();
+                socket.connect(new InetSocketAddress(targetIP, 4321), 5000); // 3秒超时
+                
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                out.println(data);
+                out.flush();
+                
+                promise.resolve(true);
+            } catch (Exception e) {
+                Log.e("OrderHandlerModule", "发送TCP数据失败: " + e.getMessage());
+                promise.reject("TCP_ERROR", "发送TCP数据失败: " + e.getMessage());
+            } 
+        }).start();
     }
 
 }
