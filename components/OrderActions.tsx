@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
     overflow: "hidden",
-    backgroundColor: "#3498db", // 匹配截图中的蓝色
+    backgroundColor: colors.buttonActionColor,
     width: "100%",
     height: 50, // 设置一个固定高度// 使用绝对定位
     bottom: 0, // 放置在底部

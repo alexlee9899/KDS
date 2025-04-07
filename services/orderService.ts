@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { OrderSearchResponse, OrderDetailResponse, OrderSearchParams, OrderDetailParams, ProductDetailResponse, FormattedOrder } from './types';
+import { OrderSearchResponse, OrderSearchParams, ProductDetailResponse, FormattedOrder } from './types';
 import orderModule from './orderModule';
 import * as Network from 'expo-network';
 import AudioService from './audioService';  // 导入音频服务
 import { getToken } from '../utils/auth';
-import { DistributionService } from './distributionService';
+import { DateTime } from 'luxon';
+
+
 const API_BASE_URL = 'https://vend88.com';
 const POLLING_INTERVAL = 5000; // 5秒轮询间隔
 
@@ -185,7 +187,7 @@ export class OrderService {
   // 初始化系统 - 同时启动网络轮询和TCP服务器
   static async initialize() {
     try {
-      console.log('初始化订单系统...');
+      console.log('===== 初始化订单系统开始 =====');
       
       // 从AsyncStorage加载已有订单
       this.networkOrders = await this.loadNetworkOrders();
@@ -194,17 +196,18 @@ export class OrderService {
       console.log(`已加载 ${this.networkOrders.length} 个网络订单和 ${this.tcpOrders.length} 个TCP订单`);
       
       // 同时启动网络轮询和TCP服务器，不再根据网络状态切换
-      console.log('启动网络订单轮询...');
+      console.log('即将启动网络订单轮询...');
       this.startNetworkPolling();
       
-      console.log('初始化TCP服务器...');
+      console.log('即将初始化TCP服务器...');
       this.bindTCPServer().catch(err => {
         console.error('TCP服务器初始化失败，但继续使用网络模式:', err);
       });
       
+      console.log('===== 初始化订单系统完成 =====');
       return true;
     } catch (error) {
-      console.error('初始化失败:', error);
+      console.error('===== 初始化失败 =====', error);
       return false;
     }
   }
@@ -260,7 +263,7 @@ export class OrderService {
         pickupMethod: orderData.pickupMethod || orderData.pick_method || "未知",
         pickupTime: orderData.pickupTime || orderData.pick_time || new Date().toISOString(),
         order_num: orderData.order_num?.toString() || orderId,
-        items: items.map((item: any) => ({
+        products: items.map((item: any) => ({
           id: item.id || `tcp-item`,
           name: item.name || "未知商品",
           quantity: item.quantity || 1,
@@ -279,84 +282,95 @@ export class OrderService {
         pickupMethod: "格式化错误",
         pickupTime: new Date().toISOString(),
         order_num: String(Date.now()),
-        items: [],
+        products: [],
         source: 'tcp'
       };
     }
   }
 
-  // 生成当天的时间范围
+  // 修改后的函数，返回悉尼当天完整时间范围（转换为UTC+0时区）
   private static getFullDayTimeRange(): [string, string] {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    
-    const startTime = `${year}-${month}-${day} 00:00:00`;
-    const endTime = `${year}-${month}-${day} 23:59:59`;
-    
-    return [startTime, endTime];
-  }
-
-  // 修改后的函数，适应服务器时区
-  private static getTimeRangeAroundNow(): [string, string] {
-    // 获取当前本地时间
+    // 获取当前悉尼时间
     const now = new Date();
     
-    // 计算5秒前（本地时间）
-    const fiveSecondsAgo = new Date(now.getTime() - 5000);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0); 
+    // 格式化为服务器期望的日期格式 "YYYY-MM-DD HH:MM:SS"（UTC时间）
+    // 计算今天结束时间（悉尼时间 23:59:59）
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
     
-    // 计算今晚零点（本地时间）
-    const midnight = new Date(now);
-    midnight.setDate(midnight.getDate() + 1);  // 设置为明天
-    midnight.setHours(0, 0, 0, 0);  // 设置为零点
-    
-    // 服务器与本地时区的差值（小时）
-    // 如果服务器是 UTC-3，本地是 UTC+8，则差值为 -11 小时
-    const serverTimezoneOffset = -11; 
-    
-    // 将本地时间转换为服务器时区时间
-    const serverFiveSecondsAgo = new Date(fiveSecondsAgo);
-    serverFiveSecondsAgo.setHours(serverFiveSecondsAgo.getHours() + serverTimezoneOffset);
-    
-    const serverMidnight = new Date(midnight);
-    serverMidnight.setHours(serverMidnight.getHours() + serverTimezoneOffset);
-    
-    // 格式化为服务器期望的日期格式 "YYYY-MM-DD HH:MM:SS"
+    // 格式化为服务器期望的日期格式 "YYYY-MM-DD HH:MM:SS"（UTC时间）
     const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
+      // 创建UTC时间字符串
+      const utcYear = date.getUTCFullYear();
+      const utcMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const utcDay = String(date.getUTCDate()).padStart(2, '0');
+      const utcHours = String(date.getUTCHours()).padStart(2, '0');
+      const utcMinutes = String(date.getUTCMinutes()).padStart(2, '0');
+      const utcSeconds = String(date.getUTCSeconds()).padStart(2, '0');
       
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      return `${utcYear}-${utcMonth}-${utcDay} ${utcHours}:${utcMinutes}:${utcSeconds}`;
     };
     
-    console.log(`本地时间范围: ${formatDate(fiveSecondsAgo)} 到 ${formatDate(midnight)}`);
-    console.log(`服务器时间范围: ${formatDate(serverFiveSecondsAgo)} 到 ${formatDate(serverMidnight)}`);
     
-    // 返回服务器时区的时间范围
-    return [formatDate(serverFiveSecondsAgo), formatDate(serverMidnight)];
+    // 返回UTC格式的时间范围（服务器时区）
+    return [formatDate(todayStart), formatDate(todayEnd)];
+  }
+
+  // 修改后的函数，返回从当前时间5秒前到当天结束的时间范围（转换为UTC+0时区）
+  public static getTimeRangeAroundNow(): [string, string] {
+    // 获取当前悉尼时间
+    const now = new Date();
+    
+    // 计算5秒前（悉尼时间）
+    const fiveSecondsAgo = new Date(now.getTime() - 5000);
+    
+    // 计算今天结束时间（悉尼时间 23:59:59）
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    // 格式化为服务器期望的日期格式 "YYYY-MM-DD HH:MM:SS"（UTC时间）
+    const formatDate = (date: Date) => {
+      // 创建UTC时间字符串
+      const utcYear = date.getUTCFullYear();
+      const utcMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const utcDay = String(date.getUTCDate()).padStart(2, '0');
+      const utcHours = String(date.getUTCHours()).padStart(2, '0');
+      const utcMinutes = String(date.getUTCMinutes()).padStart(2, '0');
+      const utcSeconds = String(date.getUTCSeconds()).padStart(2, '0');
+      
+      return `${utcYear}-${utcMonth}-${utcDay} ${utcHours}:${utcMinutes}:${utcSeconds}`;
+    };
+    
+    
+    // 返回UTC格式的时间范围（服务器时区）
+    return [formatDate(fiveSecondsAgo), formatDate(todayEnd)];
   }
 
   // 开始网络轮询
   static startNetworkPolling() {
+    console.log('==== 尝试启动网络订单轮询 ====');
+    
     if (this.networkPollingInterval) {
       // 如果已经在轮询，先停止
+      console.log('已存在轮询定时器，重置轮询');
       this.stopNetworkPolling();
     }
     
-    console.log('开始网络订单轮询，间隔:', POLLING_INTERVAL, 'ms');
+    console.log(`开始网络订单轮询，间隔: ${POLLING_INTERVAL}ms，当前时间: ${new Date().toISOString()}`);
     
     // 立即执行一次
-    this.fetchOrdersFromNetwork();
+    console.log('立即执行第一次轮询');
+    this.fetchOrdersFromNetwork(this.getTimeRangeAroundNow());
     
     // 设置定时器
     this.networkPollingInterval = setInterval(() => {
-      this.fetchOrdersFromNetwork();
+      
+      this.fetchOrdersFromNetwork(this.getTimeRangeAroundNow());
     }, POLLING_INTERVAL);
+    
+   
   }
 
   // 停止网络轮询
@@ -369,17 +383,17 @@ export class OrderService {
   }
 
   // 从网络获取订单
-  static async fetchOrdersFromNetwork() {
+  static async fetchOrdersFromNetwork(timeRange: [string, string]) {
+    const requestId = Date.now().toString().slice(-6); // 生成简短请求ID用于日志跟踪
+    
+    
     try {
       // 获取token
       const token = await getToken();
       if (!token) {
-        console.error('无法获取访问令牌，请先登录');
+        console.error(`[请求${requestId}] 无法获取访问令牌，请先登录`);
         return;
       }
-      
-      // 获取时间范围
-      const timeRange = this.getTimeRangeAroundNow();
       
       // 准备请求体
       const requestBody = {
@@ -392,8 +406,6 @@ export class OrderService {
         page_idx: 0
       };
       
-      
-      
       // 发送请求
       const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
         method: 'POST',
@@ -404,11 +416,16 @@ export class OrderService {
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP错误! 状态: ${response.status}`);
+        
+        return;
       }
-      
+      // console.log(`=================`);
+      // console.log('response is : ', response);
+     
       const result = await response.json();
-      
+      // console.log(`=================`);
+      // console.log('result is : ', result);
+      // console.log(`=================`);
       
       // 检查返回的订单数据
       if (result && result.orders && Array.isArray(result.orders)) {
@@ -424,8 +441,10 @@ export class OrderService {
           }
         }
       }
+      
+      console.log(`[请求${requestId}] 订单处理完成，当前时间: ${new Date().toISOString()}`);
     } catch (error) {
-      console.error('网络获取订单失败:', error);
+      console.error(`[请求${requestId}] 网络获取订单失败:`, error);
     }
   }
   
@@ -448,16 +467,21 @@ export class OrderService {
         };
       });
 
+      // 转换pickupTime为悉尼时区
+      console.log('=================');
+      console.log('order.pick_time is : ', order.pick_time);
+      const sydneyPickupTime = this.convertToSydneyTime(order.pick_time);
+      console.log('sydneyPickupTime is : ', sydneyPickupTime);
+      console.log('=================');
       return {
-        id: order.order_num.toString(), // 使用order_num作为ID
+        id: order.order_num.toString(),
         orderTime: order.time,
         pickupMethod: order.pick_method,
-        pickupTime: order.pick_time,
+        pickupTime: sydneyPickupTime, // 使用转换后的悉尼时间
         order_num: order.order_num.toString(),
         status: order.status, 
-        
-        items: formattedItems,
-        source: 'network' // 标记来源为网络
+        products: formattedItems,
+        source: 'network'
       };
     } catch (error) {
       console.error('格式化网络订单失败:', error, order);
@@ -470,48 +494,12 @@ export class OrderService {
         pickupTime: order.pick_time || new Date().toISOString(),
         order_num: (order.order_num || Date.now()).toString(),
         status: order.status || '未知',
-  
-        items: [],
+        products: [],
         source: 'network'
       };
     }
   }
 
-  static async searchOrders(timeRange: [string, string]): Promise<OrderSearchResponse> {
-    const token = await getToken();
-    
-    if (!token) {
-      throw new Error('未找到令牌');
-    }
-    
-    const searchParams: OrderSearchParams = {
-      query: {
-        time: timeRange
-      },
-      detail: true,
-      page_size: 10000,
-      page_idx: 0
-    };
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(searchParams)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP错误! 状态: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('搜索订单失败:', error);
-      throw error;
-    }
-  }
 
   // 获取产品详情
   static async getProductDetail(productId: string): Promise<ProductDetailResponse> {
@@ -535,68 +523,89 @@ export class OrderService {
     }
   }
 
-  // 添加新方法获取历史订单
+  // 修改 getHistoryOrderDetails 方法
   static async getHistoryOrderDetails(): Promise<FormattedOrder[]> {
     try {
+      // 获取时间范围
       const timeRange = this.getFullDayTimeRange();
-
-      const searchResult = await this.searchOrders(timeRange);
-      return this.formatOrders(searchResult);
+      // console.log('获取历史订单使用时间范围:', timeRange);
+      
+      // 获取token
+      const token = await getToken();
+      if (!token) {
+        console.error('无法获取访问令牌，请先登录');
+        return [];
+      }
+      
+      // 准备请求体
+      const requestBody = {
+        token: token,
+        query: {
+          time: timeRange
+        },
+        detail: true,
+        page_size: 10000,
+        page_idx: 0
+      };
+      
+      // 发送请求
+      const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP错误! 状态: ${response.status}`);
+      }
+      
+      // 解析响应内容为JSON
+      const result = await response.json();
+      
+      
+      // 检查数据格式
+      if (!result.orders || !Array.isArray(result.orders)) {
+        console.warn('返回的数据没有orders数组:', result);
+        return [];
+      }
+      
+      // 使用 result 而不是 response 来格式化订单
+      const formattedOrders = await this.formatOrders(result);
+      
+      
+      return formattedOrders;
     } catch (error) {
       console.error('获取历史订单失败:', error);
-      throw error;
+      return []; // 返回空数组而不是抛出错误
     }
   }
 
-  // 修改格式化订单的辅助方法
+  // 更新 formatOrders 方法以更健壮地处理数据
   private static async formatOrders(ordersData: any): Promise<FormattedOrder[]> {
     const formattedOrders: FormattedOrder[] = [];
-
-    // 确保我们有订单数组
-    const orders = ordersData.orders || [];
     
-    for (const order of orders) {
+    console.log('开始格式化订单，原始数据包含', ordersData.orders.length, '个订单');
+    
+    // 确保我们有订单数组
+    if (!ordersData || !ordersData.orders || !Array.isArray(ordersData.orders)) {
+      console.warn('formatOrders: 无效的订单数据格式', ordersData);
+      return [];
+    }
+    
+    for (const order of ordersData.orders) {
       try {
-        // 获取商品详情 - 如果需要的话
-        const productDetails = await Promise.all(
-          order.products.map((productId: any) => this.getProductDetail(productId))
-        );
-
-        // 格式化当前订单选项
-        const formattedItems = productDetails.map((product, index) => {
-          // 获取当前产品的选项
-          const productOptions = order.options[index] || [];
-          
-          return {
-            id: product.product_id || `item-${index}-${Date.now()}`,
-            name: product.name,
-            quantity: order.qtys[index],
-            price: order.product_prices[index] || 0,
-            options: productOptions.map((opt: any) => ({
-              name: opt.name || '选项',
-              value: String(opt.qty || 1),
-              price: opt.price_adjust || 0
-            }))
-          };
-        });
-
-        formattedOrders.push({
-          id: order.order_num.toString(), // 使用order_num作为ID
-          orderTime: order.time,
-          pickupMethod: order.pick_method,
-          pickupTime: order.pick_time,
-          order_num: order.order_num.toString(),
-          status: order.status, // 添加订单状态
-          
-          items: formattedItems,
-          source: 'history'     // 标记来源为历史数据
-        });
+        // 使用已有的formatNetworkOrder方法
+        const formattedOrder = await this.formatNetworkOrder(order);
+        formattedOrder.source = 'history'; // 标记来源为历史
+        formattedOrders.push(formattedOrder);
       } catch (error) {
-        console.error('格式化订单失败:', error, order);
+        console.error('格式化单个订单失败:', error);
         // 继续处理下一个订单
       }
     }
-
+    
     return formattedOrders;
   }
 
@@ -637,4 +646,31 @@ export class OrderService {
       await this.sendTCPData(ip, data);
     }
   }
-} 
+
+  // 工具方法：将UTC时间转换为悉尼时区时间（保持相同格式）
+  private static convertToSydneyTime(utcTimeString: string): string {
+  try {
+    console.log('开始转换时间，输入:', utcTimeString);
+
+    // 解析 UTC 时间
+    const utcDate = DateTime.fromFormat(utcTimeString, 'yyyy-MM-dd HH:mm:ss', { zone: 'utc' });
+
+    if (!utcDate.isValid) {
+      console.error('UTC时间解析失败:', utcDate.invalidExplanation);
+      return utcTimeString;
+    }
+
+    // 转为悉尼时间
+    const sydneyDate = utcDate.setZone('Australia/Sydney');
+
+    const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
+
+    console.log('最终格式化的悉尼时间:', formattedSydneyTime);
+
+    return formattedSydneyTime;
+  } catch (error) {
+    console.error('时区转换错误:', error);
+    return utcTimeString;
+  }
+}
+}

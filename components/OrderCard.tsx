@@ -138,7 +138,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
         <View style={styles.itemsContainer}>
           <ScrollView style={styles.itemsScrollView} nestedScrollEnabled={true}>
-            {order.items.map((item, index) => (
+            {order.products.map((item, index) => (
               <View key={`${order.id}-item-${index}`}>
                 <TouchableOpacity
                   onPress={() => handleItemClick(`${order.id}-item-${index}`)}
@@ -245,17 +245,19 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 12,
     flexShrink: 1,
     minWidth: 0,
   },
   orderId: {
+    minWidth: "50%",
+    flexShrink: 1,
     fontSize: 24,
     fontWeight: "700",
     color: "#1a1a1a",
-    flexShrink: 1,
     flexWrap: "wrap",
     flex: 1,
   },

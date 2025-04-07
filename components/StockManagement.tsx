@@ -20,7 +20,7 @@ const WAREHOUSE_ID = "6672310309b356dd04293cb9";
 
 // 特殊分类常量
 const SOLD_OUT_CATEGORY = "Sold Out";
-const LOW_STOCK_CATEGORY = "Low Stock";
+const LOW_STOCK_CATEGORY = "Limited Stock";
 
 const StockManagementScreen = () => {
   // 状态管理
@@ -44,7 +44,7 @@ const StockManagementScreen = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log("loadStockData");
+      setSelectedProducts(new Set());
       // 获取仓库库存数据
       const stockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
       console.log("stockData", stockData);
@@ -64,12 +64,6 @@ const StockManagementScreen = () => {
         allProductsList.push(...categoryItems);
       });
       setAllProducts(allProductsList);
-
-      // 默认选择第一个分类
-      if (categoryList.length > 0 && !selectedCategory) {
-        setSelectedCategory(categoryList[0]);
-        setProducts(stockData.products[categoryList[0]] || []);
-      }
 
       // 清空已选商品
       //   setSelectedProducts(new Set());
@@ -216,7 +210,7 @@ const StockManagementScreen = () => {
     const qty = parseInt(refillQuantity);
 
     if (isNaN(qty) || qty < 0) {
-      Alert.alert("错误", "请输入有效的库存数量");
+      Alert.alert("error", "Please enter a valid stock quantity");
       return;
     }
 
@@ -230,83 +224,112 @@ const StockManagementScreen = () => {
       const currentCategory = selectedCategory;
 
       // 更新操作
-      console.log(`准备将选中商品库存更新为${qty}:`, selectedProductIds);
       for (const productId of selectedProductIds) {
-        console.log(`更新商品 ${productId} 库存为 ${qty}...`);
         await StockService.updateProductStock(WAREHOUSE_ID, productId, qty);
       }
 
-      console.log("库存更新完成，准备重新加载数据...");
+      // 获取仓库库存数据
+      const freshStockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
 
-      // 添加延迟确保服务器处理完成
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // 收集所有商品用于特殊分类筛选
+      const freshProductsList: StockItem[] = [];
+      Object.values(freshStockData.products).forEach((categoryItems) => {
+        freshProductsList.push(...categoryItems);
+      });
 
-      // 强制从服务器重新获取数据
-      console.log("重新加载库存数据...");
-      try {
-        // 获取仓库库存数据
-        const stockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
-        console.log("获取到最新库存数据:", stockData);
+      // 更新全局数据
+      setAllProducts(freshProductsList);
 
-        // 提取分类列表并添加特殊分类
-        const categoryList = Object.keys(stockData.products);
-        const enhancedCategories = [
-          ...categoryList,
-          SOLD_OUT_CATEGORY,
-          LOW_STOCK_CATEGORY,
-        ];
-        setCategories(enhancedCategories);
-
-        // 收集所有商品用于特殊分类筛选
-        const allProductsList: StockItem[] = [];
-        Object.values(stockData.products).forEach((categoryItems) => {
-          allProductsList.push(...categoryItems);
-        });
-        console.log("更新全部商品数据，商品总数:", allProductsList.length);
-        setAllProducts(allProductsList);
-
-        // 清除选择
-        setSelectedProducts(new Set());
-
-        // 重新加载当前分类的商品
-        console.log("重新加载当前分类:", currentCategory);
+      // 重新加载当前分类的数据
+      if (currentCategory) {
         if (currentCategory === SOLD_OUT_CATEGORY) {
-          // 筛选库存为0的商品
-          const soldOutProducts = allProductsList.filter(
+          // 使用新获取的数据筛选
+          const soldOutProducts = freshProductsList.filter(
             (item) => item.qty === 0
           );
-          console.log("售罄商品数量:", soldOutProducts.length);
           setProducts(soldOutProducts);
         } else if (currentCategory === LOW_STOCK_CATEGORY) {
-          // 筛选库存告急的商品
           const threshold = parseInt(lowStockThreshold) || 5;
-          const lowStockProducts = allProductsList.filter(
+          const lowStockProducts = freshProductsList.filter(
             (item) => item.qty > 0 && item.qty <= threshold
           );
-          console.log("库存告急商品数量:", lowStockProducts.length);
           setProducts(lowStockProducts);
-        } else if (currentCategory) {
-          // 获取常规分类的产品
-          try {
-            console.log(`获取${currentCategory}分类商品...`);
-            const categoryProducts = await StockService.getCategoryStock(
-              WAREHOUSE_ID,
-              currentCategory
-            );
-            console.log(
-              `${currentCategory}分类商品数量:`,
-              categoryProducts.length
-            );
-            setProducts(categoryProducts);
-          } catch (err) {
-            console.error(`获取${currentCategory}分类商品失败:`, err);
-          }
+        } else {
+          // 刷新常规分类
+          const categoryProducts = await StockService.getCategoryStock(
+            WAREHOUSE_ID,
+            currentCategory
+          );
+          setProducts(categoryProducts);
         }
-      } catch (err) {
-        console.error("重新加载库存数据失败:", err);
       }
 
-      Alert.alert("成功", `已将选中商品库存更新为${qty}`);
+      Alert.alert("success", `products stock is updated to ${qty}`);
+    } catch (error) {
+      console.error("补充库存错误:", error);
+      setError("补充库存失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLimitedStock = async () => {
+    try {
+      setLoading(true);
+      const selectedProductIds = Array.from(selectedProducts);
+
+      // 保存当前分类，此后要重新加载它
+      const currentCategory = selectedCategory;
+
+      // 更新操作
+      for (const productId of selectedProductIds) {
+        await StockService.updateProductStock(
+          WAREHOUSE_ID,
+          productId,
+          parseInt(lowStockThreshold)
+        );
+      }
+
+      // 获取仓库库存数据
+      const freshStockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
+
+      // 收集所有商品用于特殊分类筛选
+      const freshProductsList: StockItem[] = [];
+      Object.values(freshStockData.products).forEach((categoryItems) => {
+        freshProductsList.push(...categoryItems);
+      });
+
+      // 更新全局数据
+      setAllProducts(freshProductsList);
+
+      // 重新加载当前分类的数据
+      if (currentCategory) {
+        if (currentCategory === SOLD_OUT_CATEGORY) {
+          // 使用新获取的数据筛选
+          const soldOutProducts = freshProductsList.filter(
+            (item) => item.qty === 0
+          );
+          setProducts(soldOutProducts);
+        } else if (currentCategory === LOW_STOCK_CATEGORY) {
+          const threshold = parseInt(lowStockThreshold) || 5;
+          const lowStockProducts = freshProductsList.filter(
+            (item) => item.qty > 0 && item.qty <= threshold
+          );
+          setProducts(lowStockProducts);
+        } else {
+          // 刷新常规分类
+          const categoryProducts = await StockService.getCategoryStock(
+            WAREHOUSE_ID,
+            currentCategory
+          );
+          setProducts(categoryProducts);
+        }
+      }
+
+      Alert.alert(
+        "success",
+        `products stock is updated to ${LOW_STOCK_CATEGORY}`
+      );
     } catch (error) {
       console.error("补充库存错误:", error);
       setError("补充库存失败");
@@ -476,7 +499,7 @@ const StockManagementScreen = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Stock Management</Text>
         <View style={styles.thresholdContainer}>
-          <Text style={styles.thresholdLabel}>Low Stock Threshold:</Text>
+          <Text style={styles.thresholdLabel}>Limited Stock Threshold:</Text>
           <TextInput
             style={styles.thresholdInput}
             value={lowStockThreshold}
@@ -500,7 +523,18 @@ const StockManagementScreen = () => {
           onPress={handleSoldOut}
           disabled={selectedProducts.size === 0}
         >
-          <Text style={styles.actionButtonText}>Sold Out</Text>
+          <Text style={styles.actionButtonText}>Out of Stock</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            selectedProducts.size === 0 && styles.disabledButton,
+          ]}
+          onPress={handleLimitedStock}
+          disabled={selectedProducts.size === 0}
+        >
+          <Text style={styles.actionButtonText}>Limited Stock</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -640,7 +674,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   actionButton: {
-    backgroundColor: "#ec6161",
+    backgroundColor: colors.buttonActionColor,
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 5,
@@ -843,7 +877,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   confirmButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.buttonActionColor,
   },
   modalButtonText: {
     fontWeight: "bold",

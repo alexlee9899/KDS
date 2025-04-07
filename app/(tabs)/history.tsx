@@ -34,6 +34,7 @@ export default function HistoryScreen() {
     try {
       setLoading(true);
       const orders = await OrderService.getHistoryOrderDetails();
+
       setHistoryOrders(orders);
     } catch (error) {
       setError("Failed to load history orders");

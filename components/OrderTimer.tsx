@@ -12,6 +12,7 @@ import { FormattedOrder } from "@/services/types";
 import { NativeModules } from "react-native";
 import { checkPrinter } from "../services/orderPrinter";
 import { colors } from "../styles/color";
+import { useOrders } from "@/contexts/OrderContext";
 const { Printer_K1215 } = NativeModules;
 
 interface OrderTimerProps {
@@ -19,15 +20,43 @@ interface OrderTimerProps {
 }
 
 export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
-  const [timer, setTimer] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
   const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
+    // 计算初始时间差
+    calculateTimeDifference();
+
+    // 每秒更新一次时间差
     const interval = setInterval(() => {
-      setTimer((prev) => prev + 1);
+      calculateTimeDifference();
     }, 1000);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [order.pickupTime]);
+
+  // 计算订单生成时间与当前时间的差值（秒）
+  const calculateTimeDifference = () => {
+    try {
+      // 解析订单的pickupTime（已转换为悉尼时区的字符串）
+      const pickupDate = new Date(order.pickupTime);
+
+      // 获取当前时间
+      const now = new Date();
+
+      // 计算时间差（毫秒）
+      const diffMs = now.getTime() - pickupDate.getTime();
+
+      // 转换为秒并确保不为负数
+      const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
+
+      // 更新状态
+      setElapsedTime(diffSeconds);
+    } catch (error) {
+      console.error("计算时间差异失败:", error);
+      setElapsedTime(0);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -37,9 +66,20 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
       .padStart(2, "0")}`;
   };
 
-  const handleCall = () => {
-    console.log("Calling order:", order.id);
+  // 根据时间获取状态文本和颜色
+  const getStatusInfo = () => {
+    const minutes = Math.floor(elapsedTime / 60);
+
+    if (minutes < 5) {
+      return { text: "Action", color: colors.activeColor }; // 红色
+    } else if (minutes < 8) {
+      return { text: "Urgent", color: colors.urgentColor }; // 黄色
+    } else {
+      return { text: "Delayed", color: colors.delayedColor }; // 红色
+    }
   };
+
+  const statusInfo = getStatusInfo();
 
   const handlePrint = async () => {
     if (isPrinting) return;
@@ -72,11 +112,12 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
 
   return (
     <View style={styles.headerRight}>
-      <Text style={styles.timer}>{formatTime(timer)}</Text>
-      <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-        <Ionicons name="call-outline" size={20} color="white" />
-        <Text style={styles.callButtonText}>Call</Text>
-      </TouchableOpacity>
+      <Text style={styles.timer}>{formatTime(elapsedTime)}</Text>
+      <View
+        style={[styles.statusButton, { backgroundColor: statusInfo.color }]}
+      >
+        <Text style={styles.statusButtonText}>{statusInfo.text}</Text>
+      </View>
       <TouchableOpacity
         style={[styles.printButton, isPrinting && styles.disabledButton]}
         onPress={handlePrint}
@@ -106,14 +147,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  callButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.buttonCallColor,
+  statusButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
+    borderRadius: 8,
+  },
+  statusButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   printButton: {
     flexDirection: "row",
@@ -126,11 +168,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.7,
-  },
-  callButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
   },
   printButtonText: {
     color: "white",

@@ -47,7 +47,7 @@ export default function LoginScreen() {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.title}>Welcome to Login</Text>
+        <Text style={styles.title}>Welcome to Order HUB</Text>
       </View>
       <View style={styles.inputContainer}>
         <TextInput

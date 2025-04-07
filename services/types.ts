@@ -61,5 +61,5 @@ export interface FormattedOrder {
   order_num?: number | string;
   status?: string;
   source?: string;
-  items: OrderItem[];
+  products: OrderItem[];
 } 

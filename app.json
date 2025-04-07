@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "KDS",
-    "slug": "KDS",
+    "name": "Order Hub",
+    "slug": "Order Hub",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",

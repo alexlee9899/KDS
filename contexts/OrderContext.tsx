@@ -10,7 +10,6 @@ import { OrderService } from "../services/orderService";
 import { DistributionService, KDSRole } from "../services/distributionService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Network from "expo-network";
-
 interface OrderContextType {
   orders: FormattedOrder[];
   networkOrders: FormattedOrder[]; // 网络订单
@@ -147,7 +146,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
       // 强制进行一次网络刷新
       if (networkStatus === "connected") {
-        await OrderService.fetchOrdersFromNetwork();
+        await OrderService.fetchOrdersFromNetwork(
+          OrderService.getTimeRangeAroundNow()
+        );
       }
 
       // 获取最新订单
