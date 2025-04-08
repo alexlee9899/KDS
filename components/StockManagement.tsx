@@ -14,6 +14,9 @@ import {
 } from "react-native";
 import { StockService, StockItem } from "../services/stockService";
 import { colors } from "@/styles/color";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useCategoryColors } from "../contexts/CategoryColorContext";
+import { categoryColors } from "../styles/color";
 
 // 仓库ID常量
 const WAREHOUSE_ID = "6672310309b356dd04293cb9";
@@ -23,6 +26,10 @@ const SOLD_OUT_CATEGORY = "Sold Out";
 const LOW_STOCK_CATEGORY = "Limited Stock";
 
 const StockManagementScreen = () => {
+  const { t } = useLanguage();
+  const { categoryColorMap, setCategoryColor, getCategoryColor } =
+    useCategoryColors();
+
   // 状态管理
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -38,6 +45,12 @@ const StockManagementScreen = () => {
   // 库存更新相关状态
   const [refillModalVisible, setRefillModalVisible] = useState(false);
   const [refillQuantity, setRefillQuantity] = useState("");
+
+  // 添加新的状态
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [categoryForColoring, setCategoryForColoring] = useState<string | null>(
+    null
+  );
 
   // 加载库存数据
   const loadStockData = async () => {
@@ -125,7 +138,7 @@ const StockManagementScreen = () => {
   };
 
   // 标记为售罄
-  const handleSoldOut = async () => {
+  const markAsSoldOut = async () => {
     try {
       setLoading(true);
       const selectedProductIds = Array.from(selectedProducts);
@@ -190,10 +203,10 @@ const StockManagementScreen = () => {
         console.error("重新加载库存数据失败:", err);
       }
 
-      Alert.alert("成功", "已将选中商品标记为售罄");
+      Alert.alert(t("success"), t("markedAsSoldOut"));
     } catch (error) {
       console.error("标记售罄错误:", error);
-      setError("标记售罄失败");
+      setError(t("markSoldOutFailed"));
     } finally {
       setLoading(false);
     }
@@ -210,7 +223,7 @@ const StockManagementScreen = () => {
     const qty = parseInt(refillQuantity);
 
     if (isNaN(qty) || qty < 0) {
-      Alert.alert("error", "Please enter a valid stock quantity");
+      Alert.alert(t("error"), t("enterValidStock"));
       return;
     }
 
@@ -264,10 +277,10 @@ const StockManagementScreen = () => {
         }
       }
 
-      Alert.alert("success", `products stock is updated to ${qty}`);
+      Alert.alert(t("success"), t("stockUpdatedTo") + ` ${qty}`);
     } catch (error) {
       console.error("补充库存错误:", error);
-      setError("补充库存失败");
+      setError(t("refillStockFailed"));
     } finally {
       setLoading(false);
     }
@@ -326,13 +339,10 @@ const StockManagementScreen = () => {
         }
       }
 
-      Alert.alert(
-        "success",
-        `products stock is updated to ${LOW_STOCK_CATEGORY}`
-      );
+      Alert.alert(t("success"), t("stockUpdatedTo") + ` ${t("lowStock")}`);
     } catch (error) {
       console.error("补充库存错误:", error);
-      setError("补充库存失败");
+      setError(t("updateStockFailed"));
     } finally {
       setLoading(false);
     }
@@ -385,31 +395,65 @@ const StockManagementScreen = () => {
     products.length > 0 &&
     products.every((item) => selectedProducts.has(item.product_id));
 
-  // 渲染分类项
-  const renderCategoryItem = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={[
-        styles.categoryItem,
-        selectedCategory === item && styles.selectedCategoryItem,
-        // 为特殊分类添加不同的样式
-        item === SOLD_OUT_CATEGORY && styles.soldOutCategoryItem,
-        item === LOW_STOCK_CATEGORY && styles.lowStockCategoryItem,
-      ]}
-      onPress={() => handleCategorySelect(item)}
-    >
-      <Text
+  // 处理长按分类事件
+  const handleCategoryLongPress = (category: string) => {
+    // 不为特殊分类设置颜色
+    if (category === SOLD_OUT_CATEGORY || category === LOW_STOCK_CATEGORY) {
+      return;
+    }
+    setCategoryForColoring(category);
+    setShowColorPicker(true);
+  };
+
+  // 选择颜色处理
+  const handleColorSelect = async (colorKey: keyof typeof categoryColors) => {
+    if (categoryForColoring) {
+      await setCategoryColor(categoryForColoring, colorKey);
+      setShowColorPicker(false);
+      setCategoryForColoring(null);
+    }
+  };
+
+  // 渲染分类项，添加长按事件与背景颜色
+  const renderCategoryItem = ({ item }: { item: string }) => {
+    // 翻译特殊分类名称
+    let displayName = item;
+    if (item === SOLD_OUT_CATEGORY) {
+      displayName = t("outOfStock");
+    } else if (item === LOW_STOCK_CATEGORY) {
+      displayName = t("lowStock");
+    }
+
+    const categoryBgColor = getCategoryColor(item);
+
+    return (
+      <TouchableOpacity
         style={[
-          styles.categoryText,
-          selectedCategory === item && styles.selectedCategoryText,
-          // 为特殊分类添加不同的文字样式
-          item === SOLD_OUT_CATEGORY && styles.soldOutCategoryText,
-          item === LOW_STOCK_CATEGORY && styles.lowStockCategoryText,
+          styles.categoryItem,
+          selectedCategory === item && styles.selectedCategoryItem,
+          item === SOLD_OUT_CATEGORY && styles.soldOutCategoryItem,
+          item === LOW_STOCK_CATEGORY && styles.lowStockCategoryItem,
+          { backgroundColor: categoryBgColor }, // 应用分类颜色
         ]}
+        onPress={() => handleCategorySelect(item)}
+        onLongPress={() => handleCategoryLongPress(item)}
+        delayLongPress={500}
       >
-        {item}
-      </Text>
-    </TouchableOpacity>
-  );
+        <Text
+          style={[
+            styles.categoryText,
+            selectedCategory === item && styles.selectedCategoryText,
+            item === SOLD_OUT_CATEGORY && styles.soldOutCategoryText,
+            item === LOW_STOCK_CATEGORY && styles.lowStockCategoryText,
+            // 如果背景色较深，文字颜色为白色
+            categoryBgColor !== "#FFFFFF" && { color: "#333" },
+          ]}
+        >
+          {displayName}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   // 渲染产品项
   const renderProductItem = ({ item }: { item: StockItem }) => (
@@ -436,7 +480,7 @@ const StockManagementScreen = () => {
           selectedProducts.has(item.product_id) && styles.selectedProductText,
         ]}
       >
-        Stock: {item.qty}
+        {t("currentStock")}: {item.qty}
       </Text>
     </TouchableOpacity>
   );
@@ -444,8 +488,48 @@ const StockManagementScreen = () => {
   // 列表为空时显示的内容
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>No products</Text>
+      <Text style={styles.emptyText}>{t("noProducts")}</Text>
     </View>
+  );
+
+  // 添加颜色选择器模态框
+  const renderColorPickerModal = () => (
+    <Modal
+      visible={showColorPicker}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowColorPicker(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.colorPickerModal}>
+          <Text style={styles.modalTitle}>
+            {t("selectColor")} - {categoryForColoring}
+          </Text>
+
+          <View style={styles.colorOptions}>
+            {(Object.keys(categoryColors) as Array<keyof typeof categoryColors>)
+              .filter((key) => key !== "default")
+              .map((colorKey) => (
+                <TouchableOpacity
+                  key={colorKey}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: categoryColors[colorKey] },
+                  ]}
+                  onPress={() => handleColorSelect(colorKey)}
+                />
+              ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => setShowColorPicker(false)}
+          >
+            <Text style={styles.cancelButtonText}>{t("cancel")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 
   // 首次加载数据
@@ -466,40 +550,43 @@ const StockManagementScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Refill Stock</Text>
-            <Text style={styles.modalSubtitle}>
-              Please enter the stock quantity:
-            </Text>
+            <Text style={styles.modalTitle}>{t("updateStock")}</Text>
+            <Text style={styles.modalSubtitle}>{t("enterStockQuantity")}:</Text>
             <TextInput
               style={styles.modalInput}
               value={refillQuantity}
               onChangeText={setRefillQuantity}
               keyboardType="numeric"
               autoFocus={true}
-              placeholder="Please enter the quantity"
+              placeholder={t("enterStockQuantity")}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setRefillModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>Cancel</Text>
+                <Text style={styles.modalButtonText}>{t("cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={submitRefill}
               >
-                <Text style={styles.modalButtonText}>Confirm</Text>
+                <Text style={styles.modalButtonText}>{t("update")}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
+      {/* 添加颜色选择器模态框 */}
+      {renderColorPickerModal()}
+
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Stock Management</Text>
+        <Text style={styles.headerTitle}>{t("stockManagement")}</Text>
         <View style={styles.thresholdContainer}>
-          <Text style={styles.thresholdLabel}>Limited Stock Threshold:</Text>
+          <Text style={styles.thresholdLabel}>
+            {t("lowStock")} {t("threshold")}:
+          </Text>
           <TextInput
             style={styles.thresholdInput}
             value={lowStockThreshold}
@@ -509,7 +596,7 @@ const StockManagementScreen = () => {
           />
         </View>
         <Text style={styles.selectedCount}>
-          Selected: {selectedProducts.size} items
+          {t("selected")}: {selectedProducts.size} {t("items")}
         </Text>
       </View>
 
@@ -520,10 +607,10 @@ const StockManagementScreen = () => {
             styles.actionButton,
             selectedProducts.size === 0 && styles.disabledButton,
           ]}
-          onPress={handleSoldOut}
+          onPress={markAsSoldOut}
           disabled={selectedProducts.size === 0}
         >
-          <Text style={styles.actionButtonText}>Out of Stock</Text>
+          <Text style={styles.actionButtonText}>{t("outOfStock")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -534,7 +621,7 @@ const StockManagementScreen = () => {
           onPress={handleLimitedStock}
           disabled={selectedProducts.size === 0}
         >
-          <Text style={styles.actionButtonText}>Limited Stock</Text>
+          <Text style={styles.actionButtonText}>{t("lowStock")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -546,7 +633,7 @@ const StockManagementScreen = () => {
           onPress={handleRefill}
           disabled={selectedProducts.size === 0}
         >
-          <Text style={styles.actionButtonText}>Refill Stock</Text>
+          <Text style={styles.actionButtonText}>{t("addStock")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -554,14 +641,14 @@ const StockManagementScreen = () => {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadStockData}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t("retry")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.content}>
           {/* 左侧分类列表 */}
           <View style={styles.categoriesContainer}>
-            <Text style={styles.sectionTitle}>Product Category</Text>
+            <Text style={styles.sectionTitle}>{t("productCategory")}</Text>
             <FlatList
               data={categories}
               renderItem={renderCategoryItem}
@@ -576,7 +663,7 @@ const StockManagementScreen = () => {
             {selectedCategory && (
               <View style={styles.productHeaderContainer}>
                 <Text style={styles.sectionTitle}>
-                  {selectedCategory} Products
+                  {selectedCategory} {t("products")}
                 </Text>
 
                 {/* 全选按钮 */}
@@ -593,7 +680,7 @@ const StockManagementScreen = () => {
                     >
                       {isAllSelected && <Text style={styles.checkmark}>✓</Text>}
                     </View>
-                    <Text style={styles.selectAllText}>Select All</Text>
+                    <Text style={styles.selectAllText}>{t("selectAll")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -918,6 +1005,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: "600",
+  },
+  colorPickerModal: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 16,
+    width: "80%",
+    alignItems: "center",
+  },
+  colorOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginVertical: 16,
+  },
+  colorOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    margin: 8,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  // cancelButton: {
+  //   marginTop: 16,
+  //   padding: 10,
+  //   backgroundColor: "#f0f0f0",
+  //   borderRadius: 6,
+  // },
+  cancelButtonText: {
+    color: "#333",
+    fontWeight: "bold",
   },
 });
 

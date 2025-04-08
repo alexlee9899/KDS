@@ -16,5 +16,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f8f8",
   },
 });
-
 export default stock;

@@ -232,7 +232,7 @@ export class DistributionService {
       }
       
       // 2. 按品类分类订单项
-      const categorizedItems = this.categorizeOrderItems(order.items);
+      const categorizedItems = this.categorizeOrderItems(order.products);
       
       // 3. 分发到对应的子KDS
       for (const subKds of this.subKdsList) {
@@ -244,7 +244,7 @@ export class DistributionService {
         // 创建子订单
         const subOrder: FormattedOrder = {
           ...order,
-          items: categoryItems,
+          products: categoryItems,
           id: order.id,
           source: 'tcp',
           orderTime: order.orderTime,

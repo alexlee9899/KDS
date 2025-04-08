@@ -14,12 +14,15 @@ import { checkPrinter } from "../services/orderPrinter";
 import { colors } from "../styles/color";
 import { useOrders } from "@/contexts/OrderContext";
 const { Printer_K1215 } = NativeModules;
+import { useLanguage } from "../contexts/LanguageContext";
+const { Printer_K1215: NativePrinter_K1215 } = NativeModules;
 
 interface OrderTimerProps {
   order: FormattedOrder;
 }
 
 export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
+  const { t } = useLanguage();
   const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -71,11 +74,11 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
     const minutes = Math.floor(elapsedTime / 60);
 
     if (minutes < 5) {
-      return { text: "Action", color: colors.activeColor }; // 红色
+      return { text: t("action"), color: colors.activeColor }; // 红色
     } else if (minutes < 8) {
-      return { text: "Urgent", color: colors.urgentColor }; // 黄色
+      return { text: t("urgent"), color: colors.urgentColor }; // 黄色
     } else {
-      return { text: "Delayed", color: colors.delayedColor }; // 红色
+      return { text: t("delayed"), color: colors.delayedColor }; // 红色
     }
   };
 
@@ -90,7 +93,7 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
       const isReady = await checkPrinter();
 
       if (!isReady) {
-        Alert.alert("未连接", "打印机未连接，请先连接打印机");
+        Alert.alert(t("notConnected"), t("printerNotConnected"));
         return;
       }
 
@@ -98,13 +101,16 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
       const result = await Printer_K1215.printOrder(order);
 
       if (result) {
-        Alert.alert("成功", `订单 #${order.orderId || order.id} 已成功打印`);
+        Alert.alert(
+          t("success"),
+          `${t("orderPrinted")} #${order.orderId || order.id}`
+        );
       } else {
-        Alert.alert("失败", "打印订单失败，请检查打印机连接");
+        Alert.alert(t("failed"), t("printOrderFailed"));
       }
     } catch (error) {
       console.error("打印订单失败:", error);
-      Alert.alert("错误", `打印过程出错: ${error}`);
+      Alert.alert(t("error"), `${t("printingError")}: ${error}`);
     } finally {
       setIsPrinting(false);
     }
@@ -128,7 +134,7 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
         ) : (
           <>
             <Ionicons name="print-outline" size={20} color="white" />
-            <Text style={styles.printButtonText}>Print</Text>
+            <Text style={styles.printButtonText}>{t("print")}</Text>
           </>
         )}
       </TouchableOpacity>

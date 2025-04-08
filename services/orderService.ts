@@ -432,7 +432,7 @@ export class OrderService {
         // 处理每个订单
         for (const order of result.orders) {
           // 只处理新订单 - 状态为unpaid或dispatch
-          if (order.status === 'unpaid' || order.status === 'dispatch') {
+          if (order.status === 'unpaid' || order.status === 'dispatch'|| order.pick_method !== 'TEMP') {
             // 格式化订单数据
             const formattedOrder = await this.formatNetworkOrder(order);
             
@@ -472,6 +472,7 @@ export class OrderService {
       console.log('order.pick_time is : ', order.pick_time);
       const sydneyPickupTime = this.convertToSydneyTime(order.pick_time);
       console.log('sydneyPickupTime is : ', sydneyPickupTime);
+      console.log('order.source is : ', order.source);
       console.log('=================');
       return {
         id: order.order_num.toString(),
@@ -481,7 +482,7 @@ export class OrderService {
         order_num: order.order_num.toString(),
         status: order.status, 
         products: formattedItems,
-        source: 'network'
+        source: order.source
       };
     } catch (error) {
       console.error('格式化网络订单失败:', error, order);
@@ -571,9 +572,17 @@ export class OrderService {
         return [];
       }
       
-      // 使用 result 而不是 response 来格式化订单
-      const formattedOrders = await this.formatOrders(result);
+      // 在格式化前先过滤掉 pick_method 为 'TEMP' 的订单
+      const filteredOrders = result.orders.filter((order: any) => order.pick_method !== 'TEMP');
       
+      // 创建新的结果对象，包含过滤后的订单
+      const filteredResult = {
+        ...result,
+        orders: filteredOrders
+      };
+      
+      // 使用过滤后的结果格式化订单
+      const formattedOrders = await this.formatOrders(filteredResult);
       
       return formattedOrders;
     } catch (error) {

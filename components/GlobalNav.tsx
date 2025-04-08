@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { View, TouchableOpacity, Text, StyleSheet, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function GlobalNav() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 更新当前时间
@@ -49,21 +51,21 @@ export default function GlobalNav() {
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/home")}
           >
-            <Text style={styles.buttonText}>New Orders</Text>
+            <Text style={styles.buttonText}>{t("newOrders")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/history")}
           >
-            <Text style={styles.buttonText}>Order History</Text>
+            <Text style={styles.buttonText}>{t("orderHistory")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/stock")}
           >
-            <Text style={styles.buttonText}>Stock Management</Text>
+            <Text style={styles.buttonText}>{t("stockManagement")}</Text>
           </TouchableOpacity>
         </View>
 

@@ -11,7 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
 import { ConfirmModal } from "./ReuseComponents/ConfirmModal";
-import { colors } from "../styles/color";
+import { colors, sourceColors } from "../styles/color";
+import { useLanguage } from "../contexts/LanguageContext";
+
 interface OrderCardProps {
   order: FormattedOrder;
   style?: object;
@@ -27,6 +29,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onOrderComplete,
   onOrderCancel,
 }) => {
+  const { t } = useLanguage();
+
   // 跟踪商品的完成状态
   const [completedItems, setCompletedItems] = useState<{
     [key: string]: boolean;
@@ -39,6 +43,26 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // 获取订单来源的颜色
+  const getSourceColor = (source: string | undefined) => {
+    if (!source) return sourceColors.DEFAULT;
+
+    // 将source转为大写以便匹配
+    const upperSource = source.toUpperCase();
+    return (
+      sourceColors[upperSource as keyof typeof sourceColors] ||
+      sourceColors.DEFAULT
+    );
+  };
+
+  // 获取订单来源的显示名称
+  const getSourceDisplayName = (source: string | undefined) => {
+    if (!source) return t("unknown");
+
+    // 尝试使用小写的source作为翻译键
+    return t(source.toLowerCase());
+  };
 
   // 处理商品点击
   const handleItemClick = (itemId: string) => {
@@ -77,40 +101,39 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     }
   };
 
-  // 格式化时间显示
-  const formatTime = (timeString: string) => {
-    try {
-      const date = new Date(timeString);
-      return date.toLocaleString();
-    } catch (e) {
-      return timeString;
-    }
-  };
-
   // 安全显示文本，如果为空则显示"null"
   const safeText = (text: string | undefined) => {
     return text || "null";
   };
 
+  // 获取订单来源颜色
+  const sourceColor = getSourceColor(order.source);
+  const sourceName = getSourceDisplayName(order.source);
+
   return (
     <View style={[styles.orderCard, style]}>
+      {/* 添加订单来源指示器 */}
+      <View style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}>
+        <Text style={styles.sourceText}>{sourceName}</Text>
+      </View>
+
       <View style={styles.textContainer}>
         <ConfirmModal
           visible={showDoneConfirm}
-          title="complete order"
-          message={`confirm complete order #${order.order_num}?`}
-          confirmText="complete"
-          cancelText="cancel"
+          title={t("complete")}
+          message={`${t("confirmComplete")} #${order.order_num}?`}
+          confirmText={t("complete")}
+          cancelText={t("cancel")}
           onConfirm={handleDoneConfirm}
           onCancel={() => setShowDoneConfirm(false)}
         />
 
         <ConfirmModal
           visible={showCancelConfirm}
-          title="cancel order"
-          message={`confirm cancel order #${order.order_num}?`}
-          confirmText="cancel"
-          cancelText="cancel"
+          title={t("cancel")}
+          message={`${t("confirmCancel")} #${order.order_num}?`}
+          confirmText={t("cancel")}
+          cancelText={t("cancel")}
           onConfirm={handleCancelConfirm}
           onCancel={() => setShowCancelConfirm(false)}
           isDanger
@@ -118,21 +141,25 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
         <View style={styles.header}>
           <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">
-            Order #{order.order_num || order.orderId}
+            {t("order")} #{order.order_num || order.orderId}
           </Text>
           {!disabled && <OrderTimer order={order} />}
         </View>
 
         {order.orderId && (
-          <Text style={styles.orderDetail}>Order Id: {order.orderId}</Text>
+          <Text style={styles.orderDetail}>
+            {t("orderId")}: {order.orderId}
+          </Text>
         )}
         <Text style={styles.orderDetail}>
-          Pickup Method: {order.pickupMethod}
+          {t("pickupMethod")}: {order.pickupMethod}
         </Text>
-        <Text style={styles.orderDetail}>Pickup Time: {order.pickupTime}</Text>
+        <Text style={styles.orderDetail}>
+          {t("pickupTime")}: {order.pickupTime}
+        </Text>
         {order.tableNumber && (
           <Text style={styles.orderDetail}>
-            Table Number: {safeText(order.tableNumber)}
+            {t("tableNumber")}: {safeText(order.tableNumber)}
           </Text>
         )}
 
@@ -237,6 +264,22 @@ const styles = StyleSheet.create({
     height: 600,
     display: "flex",
     flexDirection: "column",
+    position: "relative", // 添加相对定位
+  },
+  sourceIndicator: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 8,
+    zIndex: 1,
+  },
+  sourceText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 12,
   },
   textContainer: {
     flex: 1,
@@ -248,6 +291,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    marginTop: 12,
     marginBottom: 12,
     flexShrink: 1,
     minWidth: 0,

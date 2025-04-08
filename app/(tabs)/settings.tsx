@@ -17,6 +17,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PrinterTestCard } from "../../components/PrinterTestCard";
 import { SocketTest } from "@/components/SocketTest";
 import { CategoryType } from "@/services/distributionService";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { colors } from "../../styles/color";
 
 // KDS角色类型
 enum KDSRole {
@@ -25,6 +27,7 @@ enum KDSRole {
 }
 
 export default function SettingsScreen() {
+  const { language, t, changeLanguage } = useLanguage();
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("4321"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
@@ -133,6 +136,32 @@ export default function SettingsScreen() {
       default:
         return "未知";
     }
+  };
+
+  const toggleLanguage = async () => {
+    // 切换语言
+    const newLanguage = language === "en" ? "zh" : "en";
+    await changeLanguage(newLanguage);
+  };
+
+  // 重置设置
+  const resetSettings = () => {
+    Alert.alert(t("resetSettings"), t("confirmReset"), [
+      {
+        text: t("cancel"),
+        style: "cancel",
+      },
+      {
+        text: t("confirm"),
+        onPress: async () => {
+          // 重置为英文
+          await changeLanguage("en");
+          // 重置其他设置
+          await AsyncStorage.removeItem("viewMode");
+          // 可以添加其他需要重置的设置
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -257,10 +286,30 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>系统信息</Text>
-        <Text style={styles.infoText}>系统版本: 1.0.0</Text>
-        <Text style={styles.infoText}>© 2023 Pospal Australia Pty Ltd</Text>
+        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+        <Text style={styles.infoText}>{t("copyright")}</Text>
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t("language")}</Text>
+
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>
+            {language === "en" ? t("english") : t("chinese")}
+          </Text>
+          <Switch
+            value={language === "zh"}
+            onValueChange={toggleLanguage}
+            trackColor={{ false: "#767577", true: colors.activeColor }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
+        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -398,5 +447,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     marginTop: 8,
+  },
+  section: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  settingItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  settingLabel: {
+    fontSize: 16,
+    color: "#333",
+  },
+  resetButton: {
+    backgroundColor: "#ff3b30",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  resetButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

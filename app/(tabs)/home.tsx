@@ -13,6 +13,7 @@ import { useOrders } from "../../contexts/OrderContext";
 import { theme } from "../../styles/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@/styles/color";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
@@ -23,6 +24,7 @@ const COMPACT_CARDS_PER_ROW = 5;
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder } = useOrders();
   const [viewMode, setViewMode] = useState<"standard" | "compact">("standard");
+  const { t } = useLanguage();
 
   // 加载保存的视图模式设置
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function HomeScreen() {
   if (orders.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.noOrdersText}>No Orders...</Text>
+        <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
       </View>
     );
   }
@@ -81,7 +83,9 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerContainer}>
-        <Text style={styles.title}>New Orders ({orders.length})</Text>
+        <Text style={styles.title}>
+          {t("newOrders")} ({orders.length})
+        </Text>
 
         <View style={styles.viewModeContainer}>
           <TouchableOpacity
