@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  StyleProp,
+  ViewStyle,
 } from "react-native";
 import { FormattedOrder } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,13 +15,20 @@ import { OrderActions } from "./OrderActions";
 import { ConfirmModal } from "./ReuseComponents/ConfirmModal";
 import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useCategoryColors } from "../contexts/CategoryColorContext";
+import { theme } from "../styles/theme";
 
 interface OrderCardProps {
   order: FormattedOrder;
-  style?: object;
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
-  onOrderComplete?: (orderId: string) => void;
-  onOrderCancel?: (orderId: string) => void;
+  onOrderComplete?: (order: FormattedOrder) => void;
+  onOrderCancel?: (order: FormattedOrder) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+  hideTimer?: boolean;
+  hideActions?: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
@@ -28,8 +37,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   disabled = false,
   onOrderComplete,
   onOrderCancel,
+  selectable = false,
+  selected = false,
+  onSelect,
+  hideTimer = false,
+  hideActions = false,
 }) => {
   const { t } = useLanguage();
+  const { getCategoryColor, categoryColorMap } = useCategoryColors();
 
   // 跟踪商品的完成状态
   const [completedItems, setCompletedItems] = useState<{
@@ -43,6 +58,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // 添加一个状态来强制重新渲染
+  const [, forceUpdate] = useState({});
+
+  // 监听颜色映射变化
+  useEffect(() => {
+    // 当颜色映射变化时，强制更新组件
+    forceUpdate({});
+  }, [categoryColorMap]);
 
   // 获取订单来源的颜色
   const getSourceColor = (source: string | undefined) => {
@@ -89,7 +113,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     setShowDoneConfirm(false);
     // 调用完成订单的回调
     if (onOrderComplete) {
-      onOrderComplete(order.id);
+      onOrderComplete(order);
     }
   };
 
@@ -97,7 +121,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     setShowCancelConfirm(false);
     // 调用取消订单的回调
     if (onOrderCancel) {
-      onOrderCancel(order.id);
+      onOrderCancel(order);
     }
   };
 
@@ -110,141 +134,180 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const sourceColor = getSourceColor(order.source);
   const sourceName = getSourceDisplayName(order.source);
 
-  return (
-    <View style={[styles.orderCard, style]}>
-      {/* 添加订单来源指示器 */}
-      <View style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}>
-        <Text style={styles.sourceText}>{sourceName}</Text>
-      </View>
+  // 渲染产品项时应用分类颜色
+  const renderProductItem = (item: any, index: number) => {
+    // 获取产品的分类颜色
+    const categoryColor = getCategoryColor(item.category);
 
-      <View style={styles.textContainer}>
-        <ConfirmModal
-          visible={showDoneConfirm}
-          title={t("complete")}
-          message={`${t("confirmComplete")} #${order.order_num}?`}
-          confirmText={t("complete")}
-          cancelText={t("cancel")}
-          onConfirm={handleDoneConfirm}
-          onCancel={() => setShowDoneConfirm(false)}
-        />
+    return (
+      <View key={`${order.id}-item-${index}`} style={styles.itemContainer}>
+        <TouchableOpacity
+          onPress={() => handleItemClick(`${order.id}-item-${index}`)}
+          disabled={disabled}
+          activeOpacity={0.7}
+          style={[
+            styles.itemRow,
+            completedItems[`${order.id}-item-${index}`] && styles.completedItem,
+            { backgroundColor: categoryColor }, // 应用分类颜色
+          ]}
+        >
+          <Text style={styles.itemName}>{item.name}</Text>
+          {completedItems[`${order.id}-item-${index}`] ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={colors.checkColor}
+            />
+          ) : (
+            <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+          )}
+        </TouchableOpacity>
 
-        <ConfirmModal
-          visible={showCancelConfirm}
-          title={t("cancel")}
-          message={`${t("confirmCancel")} #${order.order_num}?`}
-          confirmText={t("cancel")}
-          cancelText={t("cancel")}
-          onConfirm={handleCancelConfirm}
-          onCancel={() => setShowCancelConfirm(false)}
-          isDanger
-        />
-
-        <View style={styles.header}>
-          <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">
-            {t("order")} #{order.order_num || order.orderId}
-          </Text>
-          {!disabled && <OrderTimer order={order} />}
-        </View>
-
-        {order.orderId && (
-          <Text style={styles.orderDetail}>
-            {t("orderId")}: {order.orderId}
-          </Text>
-        )}
-        <Text style={styles.orderDetail}>
-          {t("pickupMethod")}: {order.pickupMethod}
-        </Text>
-        <Text style={styles.orderDetail}>
-          {t("pickupTime")}: {order.pickupTime}
-        </Text>
-        {order.tableNumber && (
-          <Text style={styles.orderDetail}>
-            {t("tableNumber")}: {safeText(order.tableNumber)}
-          </Text>
-        )}
-
-        <View style={styles.itemsContainer}>
-          <ScrollView style={styles.itemsScrollView} nestedScrollEnabled={true}>
-            {order.products.map((item, index) => (
-              <View key={`${order.id}-item-${index}`}>
-                <TouchableOpacity
-                  onPress={() => handleItemClick(`${order.id}-item-${index}`)}
-                  disabled={disabled}
-                  activeOpacity={0.7}
-                  style={styles.itemRow}
-                >
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  {completedItems[`${order.id}-item-${index}`] ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={24}
-                      color={colors.checkColor}
-                    />
-                  ) : (
-                    <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+        {/* 选项列表 */}
+        {item.options && item.options.length > 0 && (
+          <View style={styles.optionsContainer}>
+            {item.options.map((option: any, optIndex: number) => (
+              <TouchableOpacity
+                key={`${order.id}-item-${index}-option-${optIndex}`}
+                onPress={(e) =>
+                  handleOptionClick(
+                    `${order.id}-item-${index}-option-${optIndex}`,
+                    e
+                  )
+                }
+                disabled={disabled}
+                activeOpacity={0.7}
+                style={styles.optionRow}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionName}>{option.name}:</Text>
+                  <Text style={styles.optionValue}>
+                    {" "}
+                    {safeText(option.value)}
+                  </Text>
+                  {option.price > 0 && (
+                    <Text style={styles.optionPrice}>
+                      {" "}
+                      (${option.price.toFixed(2)})
+                    </Text>
                   )}
-                </TouchableOpacity>
+                </View>
 
-                {/* 选项列表 */}
-                {item.options && item.options.length > 0 && (
-                  <View style={styles.optionsContainer}>
-                    {item.options.map((option, optIndex) => (
-                      <TouchableOpacity
-                        key={`${order.id}-item-${index}-option-${optIndex}`}
-                        onPress={(e) =>
-                          handleOptionClick(
-                            `${order.id}-item-${index}-option-${optIndex}`,
-                            e
-                          )
-                        }
-                        disabled={disabled}
-                        activeOpacity={0.7}
-                        style={styles.optionRow}
-                      >
-                        <View style={styles.optionContent}>
-                          <Text style={styles.optionName}>{option.name}:</Text>
-                          <Text style={styles.optionValue}>
-                            {" "}
-                            {safeText(option.value)}
-                          </Text>
-                          {option.price > 0 && (
-                            <Text style={styles.optionPrice}>
-                              {" "}
-                              (${option.price.toFixed(2)})
-                            </Text>
-                          )}
-                        </View>
-
-                        {completedOptions[
-                          `${order.id}-item-${index}-option-${optIndex}`
-                        ] && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color={colors.checkColor}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                {completedOptions[
+                  `${order.id}-item-${index}-option-${optIndex}`
+                ] && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={colors.checkColor}
+                  />
                 )}
-
-                <View style={styles.itemDivider} />
-              </View>
+              </TouchableOpacity>
             ))}
-          </ScrollView>
-        </View>
+          </View>
+        )}
+
+        <View style={styles.itemDivider} />
       </View>
-      {!disabled && (
-        <View>
-          <OrderActions
-            orderId={order.id}
-            onDone={() => setShowDoneConfirm(true)}
-            onCancel={() => setShowCancelConfirm(true)}
-          />
+    );
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={disabled ? 1 : 0.7}
+      onPress={selectable ? onSelect : undefined}
+    >
+      <View
+        style={[
+          styles.orderCard,
+          style,
+          order.source === "recalled" && styles.recalledOrder,
+          selected && styles.selectedCard,
+        ]}
+      >
+        {/* 添加订单来源指示器 */}
+        <View
+          style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
+        >
+          <Text style={styles.sourceText}>{sourceName}</Text>
         </View>
-      )}
-    </View>
+
+        <View style={styles.textContainer}>
+          <ConfirmModal
+            visible={showDoneConfirm}
+            title={t("complete")}
+            message={`${t("confirmComplete")} #${order.order_num}?`}
+            confirmText={t("complete")}
+            cancelText={t("cancel")}
+            onConfirm={handleDoneConfirm}
+            onCancel={() => setShowDoneConfirm(false)}
+          />
+
+          <ConfirmModal
+            visible={showCancelConfirm}
+            title={t("cancel")}
+            message={`${t("confirmCancel")} #${order.order_num}?`}
+            confirmText={t("cancel")}
+            cancelText={t("cancel")}
+            onConfirm={handleCancelConfirm}
+            onCancel={() => setShowCancelConfirm(false)}
+            isDanger
+          />
+
+          <View style={styles.header}>
+            <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">
+              {t("order")} #{order.order_num || order.orderId}
+            </Text>
+            {!disabled && !hideTimer && <OrderTimer order={order} />}
+          </View>
+
+          {order.orderId && (
+            <Text style={styles.orderDetail}>
+              {t("orderId")}: {order.orderId}
+            </Text>
+          )}
+          <Text style={styles.orderDetail}>
+            {t("pickupMethod")}: {order.pickupMethod}
+          </Text>
+          <Text style={styles.orderDetail}>
+            {t("pickupTime")}: {order.pickupTime}
+          </Text>
+          {order.tableNumber && (
+            <Text style={styles.orderDetail}>
+              {t("tableNumber")}: {safeText(order.tableNumber)}
+            </Text>
+          )}
+
+          <View style={styles.itemsContainer}>
+            <ScrollView>
+              {order.products.map((item, index) =>
+                renderProductItem(item, index)
+              )}
+            </ScrollView>
+          </View>
+        </View>
+        {!disabled && !hideActions && (
+          <View>
+            <OrderActions
+              orderId={order.id}
+              onDone={() => setShowDoneConfirm(true)}
+              onCancel={() => setShowCancelConfirm(true)}
+            />
+          </View>
+        )}
+
+        {/* 如果是可选择的，显示选择状态指示器 */}
+        {selectable && (
+          <View style={styles.selectIndicator}>
+            <Ionicons
+              name={selected ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={selected ? theme.colors.primaryColor : "#999"}
+            />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -381,5 +444,28 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#e0e0e0",
     marginVertical: 4,
+  },
+  itemContainer: {
+    marginBottom: 8,
+  },
+  completedItem: {
+    opacity: 0.6,
+    backgroundColor: "#e0e0e0",
+  },
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: theme.colors.primaryColor,
+  },
+  selectIndicator: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 2,
+  },
+  recalledOrder: {
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.warningColor,
   },
 });

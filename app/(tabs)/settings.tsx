@@ -174,10 +174,10 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>系统设置</Text>
+      <Text style={styles.title}>{t("settings")}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>KDS角色设置</Text>
+        <Text style={styles.sectionTitle}>{t("kdsRole")}</Text>
 
         <View style={styles.roleSelector}>
           <TouchableOpacity
@@ -194,7 +194,7 @@ export default function SettingsScreen() {
                   : styles.roleText
               }
             >
-              主KDS
+              {t("masterKDS")}
             </Text>
           </TouchableOpacity>
 
@@ -212,18 +212,18 @@ export default function SettingsScreen() {
                   : styles.roleText
               }
             >
-              子KDS
+              {t("subKDS")}
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>本机IP地址</Text>
+          <Text style={styles.infoLabel}>{t("localIPAddress")}</Text>
           <Text style={styles.infoValue}>{ipAddress}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>TCP端口</Text>
+          <Text style={styles.infoLabel}>{t("tcpPort")}</Text>
           <TextInput
             style={styles.textInput}
             value={port}
@@ -234,7 +234,7 @@ export default function SettingsScreen() {
 
         {kdsRole === KDSRole.SLAVE && (
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>主KDS IP地址</Text>
+            <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
             <TextInput
               style={styles.textInput}
               value={masterIP}
@@ -246,20 +246,18 @@ export default function SettingsScreen() {
 
         {kdsRole === KDSRole.MASTER && (
           <>
-            <Text style={styles.subsectionTitle}>子KDS管理</Text>
-            <Text style={styles.infoText}>
-              添加子KDS后，主KDS会自动按照品类分发订单
-            </Text>
+            <Text style={styles.subsectionTitle}>{t("subKDSManagement")}</Text>
+            <Text style={styles.infoText}>{t("addSubKDS")}</Text>
 
             <View style={styles.addKdsContainer}>
               <TextInput
                 style={[styles.textInput, { flex: 1, marginRight: 10 }]}
                 value={newSubKdsIP}
                 onChangeText={setNewSubKdsIP}
-                placeholder="输入子KDS IP地址"
+                placeholder={t("enterSubKDSIPAddress")}
               />
               <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
-                <Text style={styles.addButtonText}>添加</Text>
+                <Text style={styles.addButtonText}>{t("add")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -270,18 +268,18 @@ export default function SettingsScreen() {
                     {kds.ip} ({getCategoryDisplayName(kds.category)})
                   </Text>
                   <TouchableOpacity onPress={() => removeSubKds(kds.ip)}>
-                    <Text style={styles.removeButton}>删除</Text>
+                    <Text style={styles.removeButton}>{t("delete")}</Text>
                   </TouchableOpacity>
                 </View>
               ))
             ) : (
-              <Text style={styles.noItemsText}>暂无子KDS</Text>
+              <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
             )}
           </>
         )}
 
         <TouchableOpacity style={styles.saveButton} onPress={saveSettings}>
-          <Text style={styles.saveButtonText}>保存设置</Text>
+          <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -307,9 +305,9 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
+      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
         <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </ScrollView>
   );
 }

@@ -507,18 +507,22 @@ const StockManagementScreen = () => {
           </Text>
 
           <View style={styles.colorOptions}>
-            {(Object.keys(categoryColors) as Array<keyof typeof categoryColors>)
-              .filter((key) => key !== "default")
-              .map((colorKey) => (
-                <TouchableOpacity
-                  key={colorKey}
-                  style={[
-                    styles.colorOption,
-                    { backgroundColor: categoryColors[colorKey] },
-                  ]}
-                  onPress={() => handleColorSelect(colorKey)}
-                />
-              ))}
+            {(
+              Object.keys(categoryColors) as Array<keyof typeof categoryColors>
+            ).map((colorKey) => (
+              <TouchableOpacity
+                key={colorKey}
+                style={[
+                  styles.colorOption,
+                  { backgroundColor: categoryColors[colorKey] },
+                  colorKey === "default" && {
+                    borderWidth: 2,
+                    borderColor: "#999",
+                  },
+                ]}
+                onPress={() => handleColorSelect(colorKey)}
+              />
+            ))}
           </View>
 
           <TouchableOpacity
@@ -831,7 +835,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   selectedCategoryText: {
-    color: "#fff",
+    color: "#000",
     fontWeight: "bold",
   },
   soldOutCategoryText: {
@@ -1027,12 +1031,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
   },
-  // cancelButton: {
-  //   marginTop: 16,
-  //   padding: 10,
-  //   backgroundColor: "#f0f0f0",
-  //   borderRadius: 6,
-  // },
   cancelButtonText: {
     color: "#333",
     fontWeight: "bold",

@@ -14,6 +14,7 @@ import { theme } from "../../styles/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@/styles/color";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { FormattedOrder } from "@/services/types";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
@@ -55,6 +56,11 @@ export default function HomeScreen() {
   // 根据视图模式计算每行卡片数
   const cardsPerRow =
     viewMode === "compact" ? COMPACT_CARDS_PER_ROW : STANDARD_CARDS_PER_ROW;
+
+  // 添加这个适配器函数
+  const handleOrderRemove = (order: FormattedOrder) => {
+    removeOrder(order.id);
+  };
 
   if (loading) {
     return (
@@ -136,8 +142,8 @@ export default function HomeScreen() {
                   cardsPerRow,
               },
             ]}
-            onOrderComplete={removeOrder}
-            onOrderCancel={removeOrder}
+            onOrderComplete={handleOrderRemove}
+            onOrderCancel={handleOrderRemove}
           />
         ))}
       </View>

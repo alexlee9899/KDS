@@ -268,7 +268,8 @@ export class OrderService {
           name: item.name || "未知商品",
           quantity: item.quantity || 1,
           price: item.price || 0,
-          options: Array.isArray(item.options) ? item.options : []
+          options: Array.isArray(item.options) ? item.options : [],
+          category: item.category || "default", // 确保包含分类信息
         })),
         source: 'tcp' // 标记来源为TCP
       };
@@ -283,7 +284,8 @@ export class OrderService {
         pickupTime: new Date().toISOString(),
         order_num: String(Date.now()),
         products: [],
-        source: 'tcp'
+        source: 'tcp',
+        
       };
     }
   }
@@ -419,20 +421,17 @@ export class OrderService {
         
         return;
       }
-      // console.log(`=================`);
-      // console.log('response is : ', response);
+
      
       const result = await response.json();
-      // console.log(`=================`);
-      // console.log('result is : ', result);
-      // console.log(`=================`);
+ 
       
       // 检查返回的订单数据
       if (result && result.orders && Array.isArray(result.orders)) {
         // 处理每个订单
         for (const order of result.orders) {
-          // 只处理新订单 - 状态为unpaid或dispatch
-          if (order.status === 'unpaid' || order.status === 'dispatch'|| order.pick_method !== 'TEMP') {
+          // 只处理新订单 - 状态为unpaid或dispatch且pick_method不是TEMP
+          if ((order.status === 'unpaid' || order.status === 'dispatch') && order.pick_method !== 'TEMP') {
             // 格式化订单数据
             const formattedOrder = await this.formatNetworkOrder(order);
             
@@ -451,9 +450,18 @@ export class OrderService {
   // 格式化网络订单
   private static async formatNetworkOrder(order: any): Promise<FormattedOrder> {
     try {
-      // 无需再调用getProductDetail，因为产品详情已经包含在订单数据中
       // 直接格式化产品项
       const formattedItems = order.products.map((product: any, index: number) => {
+        // 处理category，取数组的第一个元素
+        let productCategory = "default";
+        
+        // 检查产品分类信息
+        if (Array.isArray(product.category) && product.category.length > 0) {
+          productCategory = product.category[0];
+        }
+        
+        console.log("产品:", product.name, "分类:", productCategory);
+        
         return {
           id: product._id || `item-${index}-${Date.now()}`,
           name: product.name || '未知商品',
@@ -463,7 +471,8 @@ export class OrderService {
             name: opt.name || '选项',
             value: String(opt.qty || 1),
             price: opt.price_adjust || 0
-          })) : []
+          })) : [],
+          category: productCategory, // 使用确定的分类
         };
       });
 
@@ -474,6 +483,7 @@ export class OrderService {
       console.log('sydneyPickupTime is : ', sydneyPickupTime);
       console.log('order.source is : ', order.source);
       console.log('=================');
+      
       return {
         id: order.order_num.toString(),
         orderTime: order.time,
@@ -482,7 +492,8 @@ export class OrderService {
         order_num: order.order_num.toString(),
         status: order.status, 
         products: formattedItems,
-        source: order.source
+        source: order.source,
+     
       };
     } catch (error) {
       console.error('格式化网络订单失败:', error, order);
@@ -496,7 +507,8 @@ export class OrderService {
         order_num: (order.order_num || Date.now()).toString(),
         status: order.status || '未知',
         products: [],
-        source: 'network'
+        source: 'network',
+       
       };
     }
   }
@@ -680,6 +692,30 @@ export class OrderService {
   } catch (error) {
     console.error('时区转换错误:', error);
     return utcTimeString;
+  }
+}
+
+// 撤回历史订单到新订单队列
+static async recallOrder(order: FormattedOrder): Promise<boolean> {
+  try {
+    console.log("撤回历史订单:", order.id);
+    
+    // 创建一个新的订单副本，避免修改原订单
+    const recalledOrder: FormattedOrder = {
+      ...order,
+      id: `recalled-${order.id}`, // 生成新的ID以避免冲突
+      orderTime: new Date().toISOString(), // 更新订单时间为当前时间
+      status: 'recalled', // 标记为撤回的订单
+    };
+    
+    // 保存到网络订单存储
+    await this.addNetworkOrder(recalledOrder);
+    
+    console.log("订单撤回成功:", recalledOrder.id);
+    return true;
+  } catch (error) {
+    console.error("撤回订单失败:", error);
+    throw error;
   }
 }
 }

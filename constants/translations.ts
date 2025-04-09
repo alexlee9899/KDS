@@ -86,6 +86,48 @@ export const translations = {
     printOrderFailed: "打印订单失败",
     error: "错误",
     printingError: "打印错误",
+    selectColor: "选择颜色",
+    categoryColors: "分类颜色",
+    resetColors: "重置颜色",
+    
+    // 分类颜色名称
+    default: "默认白色",
+    category1: "金色",
+    category2: "碧绿色",
+    category3: "粉红色",
+    category4: "紫色",
+    category5: "海洋绿",
+    
+    // 颜色设置
+    colorSettings: "颜色设置",
+    defaultColor: "默认颜色",
+    
+    // KDS Master/Slave 相关翻译
+    kdsRole: "KDS角色",
+    masterKDS: "主厨显示屏",
+    subKDS: "辅助显示屏", 
+    localIPAddress: "本机IP地址",
+    tcpPort: "TCP端口",
+    masterKDSIPAddress: "主机IP地址",
+    subKDSManagement: "副屏管理",
+    addSubKDS: "添加副屏设备",
+    enterSubKDSIPAddress: "输入副屏IP地址",
+    noSubKDS: "暂无副屏设备",
+    saveSettings: "保存设置",
+    
+    // 品类显示
+    drinks: "饮料",
+    hotFood: "热食",
+    coldFood: "冷食",
+    dessert: "甜点", 
+    all: "全部",
+    
+    // 设置相关提示
+    settingsSavedRestart: "设置已保存，重启应用以应用更改",
+    saveSettingsFailed: "保存设置失败",
+    pleaseEnterIPAddress: "请输入IP地址",
+    ipAlreadyAdded: "此IP已添加",
+    recallOrder: "重新召回",
   },
   
   en: {
@@ -174,6 +216,36 @@ export const translations = {
     printOrderFailed: "Failed to print order",
     error: "Error",
     printingError: "Printing error",
+    selectColor: "Select Color",
+    categoryColors: "Category Colors",
+    resetColors: "Reset Colors",
+    
+    // KDS Master/Slave related translations
+    kdsRole: "KDS Role",
+    masterKDS: "Master KDS",
+    subKDS: "Slave KDS",
+    localIPAddress: "Local IP Address",
+    tcpPort: "TCP Port",
+    masterKDSIPAddress: "Master KDS IP Address",
+    subKDSManagement: "Slave KDS Management",
+    addSubKDS: "Add Slave KDS",
+    enterSubKDSIPAddress: "Enter Slave KDS IP Address",
+    noSubKDS: "No Slave KDS",
+    saveSettings: "Save Settings",
+    
+    // Category display
+    drinks: "Drinks",
+    hotFood: "Hot Food",
+    coldFood: "Cold Food",
+    dessert: "Dessert",
+    all: "All",
+    
+    // Settings related prompts
+    settingsSavedRestart: "Settings saved, restart app to apply changes",
+    saveSettingsFailed: "Failed to save settings",
+    pleaseEnterIPAddress: "Please enter IP address",
+    ipAlreadyAdded: "This IP is already added",
+    recallOrder: "Recall Order",
   }
 };
 
