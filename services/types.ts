@@ -33,7 +33,19 @@ export interface ProductDetailResponse {
   name: string;
   product_id: string;
   status_code: number;
-  // 其他字段...
+  prepare_time?: number; // 直接从根级获取 prepare_time
+  active?: boolean;
+  business_id?: string;
+  calorie?: number;
+  category?: string[];
+  description?: string;
+  image_urls?: string[];
+  options?: any[];
+  price?: number;
+  pricing_unit?: string;
+  sku?: string;
+  suffix?: Array<{name: string; is_visible: boolean}>;
+  tax_required?: boolean;
 }
 
 export interface OrderOption {
@@ -49,6 +61,7 @@ export interface OrderItem {
   price?: number;
   category?: string;
   options?: OrderOption[];
+  prepare_time?: number;
 }
 
 export interface FormattedOrder {
@@ -62,4 +75,5 @@ export interface FormattedOrder {
   status?: string;
   source?: string;
   products: OrderItem[];
+  total_prepare_time?: number;
 } 

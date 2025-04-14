@@ -8,6 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { io, Socket } from "socket.io-client";
+import { BASE_API } from "../config/api";
 
 export const SocketTest = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -32,7 +33,7 @@ export const SocketTest = () => {
       addLog("正在连接到服务器...");
 
       // 创建新连接 - 修改连接配置
-      const newSocket = io("https://vend88.com", {
+      const newSocket = io(BASE_API, {
         // 移除URL中的/connect
         transports: ["websocket"], // 仅使用websocket，与后端匹配
         path: "/connect", // 正确使用path参数

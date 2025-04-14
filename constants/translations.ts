@@ -16,7 +16,7 @@ export const translations = {
     quantity: "数量",
     
     // 订单状态
-    action: "处理中",
+    active: "处理中",
     urgent: "紧急",
     delayed: "延迟",
     
@@ -68,6 +68,13 @@ export const translations = {
     updateStockFailed: "更新库存失败",
     enterStockQuantity: "输入库存数量",
     
+    // 准备时间更新相关
+    updatePrepTime: "更新准备时间",
+    enterPrepTime: "输入准备时间",
+    enterValidPrepTime: "请输入有效的准备时间",
+    prepTimeUpdated: "准备时间已更新",
+    updatePrepTimeFailed: "更新准备时间失败",
+    
     // 其他
     noOrders: "暂无订单...",
     todayOrderHistory: "今日订单历史",
@@ -89,6 +96,12 @@ export const translations = {
     selectColor: "选择颜色",
     categoryColors: "分类颜色",
     resetColors: "重置颜色",
+    
+    // 准备时间相关
+    totalPrepareTime: "总准备时间",
+    seconds: "秒",
+    prepTime: "准备时间",
+    remaining: "剩余时间",
     
     // 分类颜色名称
     default: "默认白色",
@@ -146,7 +159,7 @@ export const translations = {
     quantity: "Quantity",
     
     // Order status
-    action: "Action",
+    active: "active",
     urgent: "Urgent",
     delayed: "Delayed",
     
@@ -198,6 +211,13 @@ export const translations = {
     updateStockFailed: "Failed to update stock",
     enterStockQuantity: "Enter stock quantity",
     
+    // Prep time update related
+    updatePrepTime: "Update Prep Time",
+    enterPrepTime: "Enter preparation time",
+    enterValidPrepTime: "Please enter a valid preparation time",
+    prepTimeUpdated: "Preparation time updated",
+    updatePrepTimeFailed: "Failed to update preparation time",
+    
     // Others
     noOrders: "No Orders...",
     todayOrderHistory: "Today's Order History",
@@ -246,6 +266,12 @@ export const translations = {
     pleaseEnterIPAddress: "Please enter IP address",
     ipAlreadyAdded: "This IP is already added",
     recallOrder: "Recall Order",
+    
+    // 准备时间相关
+    totalPrepareTime: "Total Prepare Time",
+    seconds: "Seconds",
+    prepTime: "Prep Time",
+    remaining: "Remaining Time",
   }
 };
 

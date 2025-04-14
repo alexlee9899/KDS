@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Updates from 'expo-updates'; // 需要先安装这个包
+import { BASE_API } from '../config/api';
 
-const API_URL = 'https://vend88.com';
+const API_URL = BASE_API;
 
 export interface LoginResponse {
   message: string;
@@ -39,14 +39,14 @@ export const auth = {
   // 登录
   async login(email: string, password: string) {
     try {
-      const response = await fetch(`${API_URL}/admin/login`, {
+      const response = await fetch(`https://vend88.com/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
       });
-
+      console.log("response", response);
       const data: LoginResponse = await response.json();
       
       if (data.status_code === 200) {
@@ -59,7 +59,8 @@ export const auth = {
         return { success: false, error: data.message };
       }
     } catch (error) {
-      return { success: false, error: '网络错误' };
+      console.error("登录错误详情:", error);
+      return { success: false, error: "网络错误" };
     }
   },
 
@@ -85,4 +86,6 @@ export const auth = {
 
   // 导出getToken方法
   getToken,
-}; 
+};
+
+fetch(`${API_URL}`).then(() => console.log("API可达")).catch(e => console.error("API不可达", e)); 

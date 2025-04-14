@@ -6,6 +6,7 @@ export const colors = {
   buttonCallColor: "#569edd",
   checkColor: "#4CAF50",
   primary: "#0a110a",
+  secondary: "#4CAF50",
   urgentColor: "#D5C425",
   delayedColor: "#CD5E5E",
   activeColor: "#4CAF50",

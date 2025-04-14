@@ -71,18 +71,53 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
 
   // 根据时间获取状态文本和颜色
   const getStatusInfo = () => {
-    const minutes = Math.floor(elapsedTime / 60);
+    // 获取订单的总准备时间（以秒为单位）
+    const totalPrepareTimeSeconds = order.total_prepare_time || 0;
+    // 转换为分钟
+    const totalPrepareTimeMinutes = Math.floor(totalPrepareTimeSeconds / 60);
 
-    if (minutes < 5) {
-      return { text: t("action"), color: colors.activeColor }; // 红色
-    } else if (minutes < 8) {
-      return { text: t("urgent"), color: colors.urgentColor }; // 黄色
-    } else {
-      return { text: t("delayed"), color: colors.delayedColor }; // 红色
+    // 获取已经过去的时间（分钟）
+    const elapsedMinutes = Math.floor(elapsedTime / 60);
+
+    // 如果订单没有准备时间数据，则使用默认逻辑
+    if (totalPrepareTimeMinutes === 0) {
+      if (elapsedMinutes < 5) {
+        return { text: t("active"), color: colors.activeColor };
+      } else if (elapsedMinutes < 8) {
+        return { text: t("urgent"), color: colors.urgentColor };
+      } else {
+        return { text: t("delayed"), color: colors.delayedColor };
+      }
+    }
+
+    // 基于总准备时间的状态判断
+    // 如果已过时间小于总准备时间，表示正常
+    if (elapsedMinutes < totalPrepareTimeMinutes) {
+      return { text: t("active"), color: colors.activeColor };
+    }
+    // 如果已过时间超过总准备时间但在120%范围内，表示紧急
+    else if (elapsedMinutes < totalPrepareTimeMinutes * 1.2) {
+      return { text: t("urgent"), color: colors.urgentColor };
+    }
+    // 如果已过时间超过总准备时间的120%，表示延迟
+    else {
+      return { text: t("delayed"), color: colors.delayedColor };
     }
   };
 
   const statusInfo = getStatusInfo();
+
+  // 计算并格式化剩余准备时间
+  const getRemainingPrepTime = () => {
+    const totalPrepTimeSeconds = order.total_prepare_time || 0;
+    if (totalPrepTimeSeconds <= 0) return null;
+
+    // 剩余准备时间（秒）
+    const remainingSeconds = Math.max(0, totalPrepTimeSeconds - elapsedTime);
+    return formatTime(remainingSeconds);
+  };
+
+  const remainingPrepTime = getRemainingPrepTime();
 
   const handlePrint = async () => {
     if (isPrinting) return;

@@ -46,6 +46,10 @@ const StockManagementScreen = () => {
   const [refillModalVisible, setRefillModalVisible] = useState(false);
   const [refillQuantity, setRefillQuantity] = useState("");
 
+  // 添加准备时间相关状态
+  const [prepTimeModalVisible, setPrepTimeModalVisible] = useState(false);
+  const [prepareTime, setPrepareTime] = useState("");
+
   // 添加新的状态
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [categoryForColoring, setCategoryForColoring] = useState<string | null>(
@@ -114,7 +118,23 @@ const StockManagementScreen = () => {
           WAREHOUSE_ID,
           category
         );
-        setProducts(categoryProducts);
+
+        // 为每个产品获取准备时间
+        const productsWithPrepTime = await Promise.all(
+          categoryProducts.map(async (product) => {
+            try {
+              const prepareTime = await StockService.getProductPrepareTime(
+                product.product_id
+              );
+              return { ...product, prepare_time: prepareTime };
+            } catch (error) {
+              console.error(`获取商品 ${product.name} 准备时间失败:`, error);
+              return product;
+            }
+          })
+        );
+
+        setProducts(productsWithPrepTime);
       }
     } catch (err) {
       setError(`加载${category}分类产品失败`);
@@ -460,28 +480,36 @@ const StockManagementScreen = () => {
     <TouchableOpacity
       style={[
         styles.productItem,
-        selectedProducts.has(item.product_id) && styles.selectedProductItem,
+        selectedProducts.has(item.product_id) && styles.selectedProduct,
       ]}
       onPress={() => toggleProductSelection(item.product_id)}
     >
-      <Text
-        style={[
-          styles.productName,
-          selectedProducts.has(item.product_id) && styles.selectedProductText,
-        ]}
-      >
-        {item.name}
-      </Text>
-      <Text
-        style={[
-          styles.productQty,
-          item.qty <= parseInt(lowStockThreshold) ? styles.lowStock : null,
-          item.qty === 0 && styles.soldOutText,
-          selectedProducts.has(item.product_id) && styles.selectedProductText,
-        ]}
-      >
-        {t("currentStock")}: {item.qty}
-      </Text>
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <View style={styles.stockInfoContainer}>
+          <Text style={styles.stockText}>
+            {t("currentStock")}:{" "}
+            <Text
+              style={[
+                styles.stockCount,
+                item.qty <= parseInt(lowStockThreshold)
+                  ? styles.lowStock
+                  : null,
+                item.qty === 0 && styles.soldOutText,
+              ]}
+            >
+              {item.qty}
+            </Text>
+          </Text>
+          {item.prepare_time !== undefined && (
+            <Text style={styles.prepTimeText}>
+              {" | "}
+              {t("prepTime")}:{" "}
+              <Text style={styles.prepTimeValue}>{item.prepare_time}s</Text>
+            </Text>
+          )}
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
@@ -536,6 +564,77 @@ const StockManagementScreen = () => {
     </Modal>
   );
 
+  // 更新准备时间 - 显示输入对话框
+  const handleUpdatePrepTime = () => {
+    // 获取选中商品的第一个
+    if (selectedProducts.size > 0) {
+      const selectedProductId = Array.from(selectedProducts)[0];
+      const selectedProduct = products.find(
+        (p) => p.product_id === selectedProductId
+      );
+
+      if (selectedProduct && selectedProduct.prepare_time !== undefined) {
+        setPrepareTime(selectedProduct.prepare_time.toString());
+      } else {
+        setPrepareTime("0");
+      }
+
+      setPrepTimeModalVisible(true);
+    }
+  };
+
+  // 执行准备时间更新
+  const submitPrepTimeUpdate = async () => {
+    const time = parseInt(prepareTime);
+
+    if (isNaN(time) || time < 0) {
+      Alert.alert(t("error"), t("enterValidPrepTime"));
+      return;
+    }
+
+    setPrepTimeModalVisible(false);
+
+    try {
+      setLoading(true);
+      const selectedProductIds = Array.from(selectedProducts);
+
+      if (selectedProductIds.length === 0) {
+        return;
+      }
+
+      // 只处理第一个选中的商品
+      const productId = selectedProductIds[0];
+
+      // 更新准备时间
+      await StockService.updateProductPrepareTime(productId, time);
+
+      // 更新本地数据
+      setProducts((prevProducts) =>
+        prevProducts.map((product) =>
+          product.product_id === productId
+            ? { ...product, prepare_time: time }
+            : product
+        )
+      );
+
+      // 更新全局数据
+      setAllProducts((prevProducts) =>
+        prevProducts.map((product) =>
+          product.product_id === productId
+            ? { ...product, prepare_time: time }
+            : product
+        )
+      );
+
+      Alert.alert(t("success"), t("prepTimeUpdated"));
+    } catch (error) {
+      console.error("更新准备时间错误:", error);
+      setError(t("updatePrepTimeFailed"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 首次加载数据
   useEffect(() => {
     loadStockData();
@@ -582,6 +681,43 @@ const StockManagementScreen = () => {
         </View>
       </Modal>
 
+      {/* 准备时间更新弹窗 */}
+      <Modal
+        visible={prepTimeModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPrepTimeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>{t("updatePrepTime")}</Text>
+            <Text style={styles.modalSubtitle}>{t("enterPrepTime")}:</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={prepareTime}
+              onChangeText={setPrepareTime}
+              keyboardType="numeric"
+              autoFocus={true}
+              placeholder={t("enterPrepTime")}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setPrepTimeModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>{t("cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={submitPrepTimeUpdate}
+              >
+                <Text style={styles.modalButtonText}>{t("update")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* 添加颜色选择器模态框 */}
       {renderColorPickerModal()}
 
@@ -606,6 +742,18 @@ const StockManagementScreen = () => {
 
       {/* 操作按钮 */}
       <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            styles.prepTimeButton,
+            selectedProducts.size !== 1 && styles.disabledButton,
+          ]}
+          onPress={handleUpdatePrepTime}
+          disabled={selectedProducts.size !== 1}
+        >
+          <Text style={styles.actionButtonText}>{t("updatePrepTime")}</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.actionButton,
@@ -857,21 +1005,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 1,
   },
-  selectedProductItem: {
+  selectedProduct: {
     backgroundColor: "#e3f2fd",
     borderWidth: 1,
     borderColor: "#2196f3",
+  },
+  productInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   productName: {
     fontSize: 20,
     fontWeight: "500",
     flex: 1,
   },
-  selectedProductText: {
-    color: "#0066cc",
-    fontWeight: "bold",
+  stockInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  productQty: {
+  stockText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  stockCount: {
     fontSize: 14,
     fontWeight: "bold",
     color: "#333",
@@ -881,7 +1039,17 @@ const styles = StyleSheet.create({
   },
   soldOutText: {
     color: "#f44336",
+  },
+  prepTimeText: {
+    fontSize: 14,
     fontWeight: "bold",
+    color: "#333",
+    marginLeft: 8,
+  },
+  prepTimeValue: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
   },
   emptyContainer: {
     flex: 1,
@@ -1034,6 +1202,9 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "#333",
     fontWeight: "bold",
+  },
+  prepTimeButton: {
+    backgroundColor: colors.secondary || "#4CAF50",
   },
 });
 

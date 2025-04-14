@@ -151,7 +151,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             { backgroundColor: categoryColor }, // 应用分类颜色
           ]}
         >
-          <Text style={styles.itemName}>{item.name}</Text>
+          <View style={styles.itemNameContainer}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            {item.prepare_time > 0 && (
+              <Text style={styles.itemPrepareTime}>
+                {t("prepTime")}: {item.prepare_time}s
+              </Text>
+            )}
+          </View>
           {completedItems[`${order.id}-item-${index}`] ? (
             <Ionicons
               name="checkmark-circle"
@@ -278,6 +285,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </Text>
           )}
 
+          {/* 显示总准备时间 */}
+          {order.total_prepare_time !== undefined &&
+            order.total_prepare_time > 0 && (
+              <Text style={styles.prepareTime}>
+                {t("totalPrepareTime")}:{" "}
+                <Text style={styles.prepareTimeValue}>
+                  {order.total_prepare_time}
+                </Text>{" "}
+                {t("seconds")}
+              </Text>
+            )}
+
           <View style={styles.itemsContainer}>
             <ScrollView>
               {order.products.map((item, index) =>
@@ -394,11 +413,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     opacity: 1,
   },
+  itemNameContainer: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    flex: 1,
+  },
   itemName: {
     fontSize: 22,
     fontWeight: "600",
     color: "#333",
-    flex: 1,
   },
   itemQuantity: {
     fontSize: 22,
@@ -467,5 +490,20 @@ const styles = StyleSheet.create({
   recalledOrder: {
     borderLeftWidth: 4,
     borderLeftColor: theme.colors.warningColor,
+  },
+  itemPrepareTime: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 2,
+  },
+  prepareTime: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 2,
+  },
+  prepareTimeValue: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "bold",
   },
 });

@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_API } from '../config/api';
 
-const API_BASE_URL = 'https://vend88.com';
+const API_BASE_URL = BASE_API;
 const warehouseId = '6672310309b356dd04293cb9';
 // 定义库存项接口
 export interface StockItem {
   name: string;
   product_id: string;
   qty: number;
+  prepare_time?: number; // 添加准备时间字段
 }
 
 // 定义库存响应接口
@@ -159,6 +161,69 @@ export class StockService {
       return await response.json();
     } catch (error) {
       console.error('更新库存错误:', error);
+      throw error;
+    }
+  }
+
+  // 获取商品准备时间
+  static async getProductPrepareTime(productId: string): Promise<number> {
+    try {
+      const token = await this.getToken();
+      
+      if (!token) {
+        throw new Error('没有找到令牌');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/product/detail`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          product_id: productId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP错误! 状态: ${response.status}`);
+      }
+
+      const productDetails = await response.json();
+      return productDetails.prepare_time || 0;
+    } catch (error) {
+      console.error(`获取商品准备时间失败:`, error);
+      return 0;
+    }
+  }
+
+  // 更新商品准备时间
+  static async updateProductPrepareTime(productId: string, prepareTime: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      
+      if (!token) {
+        throw new Error('没有找到令牌');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/product/update_prepare`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: token,
+          product_id: productId,
+          prepare_time: prepareTime
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP错误! 状态: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`更新商品准备时间失败:`, error);
       throw error;
     }
   }
