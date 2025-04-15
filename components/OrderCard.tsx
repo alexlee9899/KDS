@@ -17,6 +17,7 @@ import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
 import { theme } from "../styles/theme";
+import { ProductDetailPopup } from "./ProductDetailPopup";
 
 interface OrderCardProps {
   order: FormattedOrder;
@@ -58,6 +59,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // 添加商品详情弹窗状态
+  const [showProductDetail, setShowProductDetail] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // 添加一个状态来强制重新渲染
   const [, forceUpdate] = useState({});
@@ -109,6 +117,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     }));
   };
 
+  // 处理商品长按
+  const handleItemLongPress = (item: any) => {
+    if (disabled) return;
+
+    // 设置选中的商品信息
+    setSelectedProduct({
+      id: item.id || `p${Math.floor(Math.random() * 3) + 1}`, // 如果没有ID，随机使用mock数据的ID
+      name: item.name,
+    });
+    setShowProductDetail(true);
+  };
+
   const handleDoneConfirm = () => {
     setShowDoneConfirm(false);
     // 调用完成订单的回调
@@ -143,6 +163,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <View key={`${order.id}-item-${index}`} style={styles.itemContainer}>
         <TouchableOpacity
           onPress={() => handleItemClick(`${order.id}-item-${index}`)}
+          onLongPress={() => handleItemLongPress(item)}
           disabled={disabled}
           activeOpacity={0.7}
           style={[
@@ -150,12 +171,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             completedItems[`${order.id}-item-${index}`] && styles.completedItem,
             { backgroundColor: categoryColor }, // 应用分类颜色
           ]}
+          delayLongPress={500} // 500毫秒长按触发
         >
           <View style={styles.itemNameContainer}>
             <Text style={styles.itemName}>{item.name}</Text>
             {item.prepare_time > 0 && (
               <Text style={styles.itemPrepareTime}>
-                {t("prepTime")}: {item.prepare_time}s
+                {t("prepTime")}: {item.prepare_time}min
               </Text>
             )}
           </View>
@@ -260,6 +282,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             onCancel={() => setShowCancelConfirm(false)}
             isDanger
           />
+
+          {/* 添加商品详情弹窗 */}
+          {selectedProduct && (
+            <ProductDetailPopup
+              visible={showProductDetail}
+              onClose={() => setShowProductDetail(false)}
+              productId={selectedProduct.id}
+              productName={selectedProduct.name}
+            />
+          )}
 
           <View style={styles.header}>
             <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">

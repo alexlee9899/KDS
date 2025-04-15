@@ -17,6 +17,7 @@ import { colors } from "@/styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
 import { categoryColors } from "../styles/color";
+import { ProductDetailPopup } from "../components/ProductDetailPopup";
 
 // 仓库ID常量
 const WAREHOUSE_ID = "6672310309b356dd04293cb9";
@@ -55,6 +56,13 @@ const StockManagementScreen = () => {
   const [categoryForColoring, setCategoryForColoring] = useState<string | null>(
     null
   );
+
+  // 添加商品详情弹窗状态
+  const [showProductDetail, setShowProductDetail] = useState(false);
+  const [selectedProductDetail, setSelectedProductDetail] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // 加载库存数据
   const loadStockData = async () => {
@@ -434,6 +442,15 @@ const StockManagementScreen = () => {
     }
   };
 
+  // 处理商品长按
+  const handleProductLongPress = (item: StockItem) => {
+    setSelectedProductDetail({
+      id: item.product_id,
+      name: item.name,
+    });
+    setShowProductDetail(true);
+  };
+
   // 渲染分类项，添加长按事件与背景颜色
   const renderCategoryItem = ({ item }: { item: string }) => {
     // 翻译特殊分类名称
@@ -483,6 +500,8 @@ const StockManagementScreen = () => {
         selectedProducts.has(item.product_id) && styles.selectedProduct,
       ]}
       onPress={() => toggleProductSelection(item.product_id)}
+      onLongPress={() => handleProductLongPress(item)}
+      delayLongPress={500}
     >
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{item.name}</Text>
@@ -505,7 +524,7 @@ const StockManagementScreen = () => {
             <Text style={styles.prepTimeText}>
               {" | "}
               {t("prepTime")}:{" "}
-              <Text style={styles.prepTimeValue}>{item.prepare_time}s</Text>
+              <Text style={styles.prepTimeValue}>{item.prepare_time}min</Text>
             </Text>
           )}
         </View>
@@ -720,6 +739,16 @@ const StockManagementScreen = () => {
 
       {/* 添加颜色选择器模态框 */}
       {renderColorPickerModal()}
+
+      {/* 添加商品详情弹窗 */}
+      {selectedProductDetail && (
+        <ProductDetailPopup
+          visible={showProductDetail}
+          onClose={() => setShowProductDetail(false)}
+          productId={selectedProductDetail.id}
+          productName={selectedProductDetail.name}
+        />
+      )}
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t("stockManagement")}</Text>

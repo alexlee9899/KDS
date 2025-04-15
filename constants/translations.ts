@@ -75,6 +75,15 @@ export const translations = {
     prepTimeUpdated: "准备时间已更新",
     updatePrepTimeFailed: "更新准备时间失败",
     
+    // 商品详情相关
+    ingredients: "配料",
+    instructions: "制作方法",
+    nutritionInfo: "营养信息",
+    calories: "卡路里",
+    protein: "蛋白质",
+    fat: "脂肪",
+    carbs: "碳水化合物",
+    
     // 其他
     noOrders: "暂无订单...",
     todayOrderHistory: "今日订单历史",
@@ -217,6 +226,15 @@ export const translations = {
     enterValidPrepTime: "Please enter a valid preparation time",
     prepTimeUpdated: "Preparation time updated",
     updatePrepTimeFailed: "Failed to update preparation time",
+    
+    // Product detail related
+    ingredients: "Ingredients",
+    instructions: "Instructions",
+    nutritionInfo: "Nutrition Info",
+    calories: "Calories",
+    protein: "Protein",
+    fat: "Fat",
+    carbs: "Carbs",
     
     // Others
     noOrders: "No Orders...",
