@@ -2,6 +2,7 @@ package com.anonymous.KDS
 
 import android.app.Application
 import android.content.res.Configuration
+import com.anonymous.KDS.KDSPackage
 
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -26,6 +27,7 @@ class MainApplication : Application(), ReactApplication {
             // Packages that cannot be autolinked yet can be added manually here, for example:
             // packages.add(new MyReactNativePackage());
             packages.add(MyAppPackage());
+            packages.add(KDSPackage());
             return packages
           }
 

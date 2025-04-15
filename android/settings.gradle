@@ -21,7 +21,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 
-rootProject.name = 'KDS'
+rootProject.name = 'Order Hub'
 
 dependencyResolutionManagement {
   versionCatalogs {

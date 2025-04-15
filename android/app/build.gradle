@@ -173,4 +173,8 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // 添加这一行来包含libs目录中的所有jar和aar文件
+    implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
+    
 }

@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates'; // 需要先安装这个包
+import { BASE_API } from '../config/api';
 
-const API_URL = 'https://vend88.com';
+const API_URL = BASE_API;
 
 export interface LoginResponse {
   message: string;
@@ -12,6 +13,17 @@ export interface LoginResponse {
 
 type AuthStateListener = (isAuthenticated: boolean) => void;
 const listeners = new Set<AuthStateListener>();
+
+// 将getToken独立导出，以便在各个服务中使用
+export const getToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('token');
+    return token;
+  } catch (error) {
+    console.error("获取token错误:", error);
+    return null;
+  }
+};
 
 export const auth = {
   // 添加认证状态监听器
@@ -28,7 +40,7 @@ export const auth = {
   // 登录
   async login(email: string, password: string) {
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const response = await fetch(`${API_URL}/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -40,7 +52,7 @@ export const auth = {
       
       if (data.status_code === 200) {
         // 保存 token
-        await AsyncStorage.setItem('userToken', data.token);
+        await AsyncStorage.setItem('token', data.token);
         // 通知状态变化
         auth.notifyAuthStateChange(true);
         return { success: true, data };
@@ -48,7 +60,8 @@ export const auth = {
         return { success: false, error: data.message };
       }
     } catch (error) {
-      return { success: false, error: '网络错误' };
+      console.error("登录错误详情:", error);
+      return { success: false, error: "网络错误" };
     }
   },
 
@@ -56,7 +69,7 @@ export const auth = {
   async logout() {
     try {
       // 仅删除 token，而不是清空所有存储
-      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('token');
       // 通知所有监听器认证状态变为 false
       auth.notifyAuthStateChange(false);
       return true;
@@ -68,12 +81,10 @@ export const auth = {
 
   // 检查是否已登录
   async isAuthenticated() {
-    const token = await AsyncStorage.getItem('userToken');
+    const token = await AsyncStorage.getItem('token');
     return !!token;
   },
 
-  // 获取 token
-  getToken: async () => {
-    return await AsyncStorage.getItem('userToken');
-  }
-}; 
+  // 导出getToken方法
+  getToken,
+};
