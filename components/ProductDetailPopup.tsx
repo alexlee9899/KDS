@@ -10,6 +10,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../contexts/LanguageContext";
 import { colors } from "../styles/color";
+import { API_BASE_URL } from "@/services/orderService/constants";
+import { getToken } from "@/utils/auth";
+import { getProductPrepareTime } from "@/services/orderService/networkService";
 
 // 产品详情接口
 export interface ProductDetail {
@@ -18,12 +21,6 @@ export interface ProductDetail {
   ingredients: string[];
   instructions: string[];
   prepare_time?: number;
-  nutritionInfo?: {
-    calories?: number;
-    protein?: number;
-    fat?: number;
-    carbs?: number;
-  };
 }
 
 interface ProductDetailPopupProps {
@@ -53,12 +50,6 @@ const MOCK_PRODUCT_DETAILS: Record<string, ProductDetail> = {
       "5. 加入冰块摇匀后装杯",
     ],
     prepare_time: 180,
-    nutritionInfo: {
-      calories: 350,
-      protein: 5,
-      fat: 12,
-      carbs: 55,
-    },
   },
   p2: {
     id: "p2",
@@ -73,12 +64,6 @@ const MOCK_PRODUCT_DETAILS: Record<string, ProductDetail> = {
       "6. 取出静置5分钟后切片",
     ],
     prepare_time: 600,
-    nutritionInfo: {
-      calories: 450,
-      protein: 40,
-      fat: 30,
-      carbs: 2,
-    },
   },
   p3: {
     id: "p3",
@@ -92,19 +77,75 @@ const MOCK_PRODUCT_DETAILS: Record<string, ProductDetail> = {
       "5. 涂抹奶油并装饰草莓",
     ],
     prepare_time: 1800,
-    nutritionInfo: {
-      calories: 380,
-      protein: 6,
-      fat: 18,
-      carbs: 48,
-    },
   },
 };
 
-// 获取商品详情的函数（目前使用硬编码数据）
+// 获取商品详情的函数
 const getProductDetail = async (productId: string): Promise<ProductDetail> => {
-  // 这里将来会替换为实际的API调用
-  return MOCK_PRODUCT_DETAILS[productId] || MOCK_PRODUCT_DETAILS["p1"];
+  try {
+    const token = await getToken();
+    if (!token) {
+      throw new Error("未获取到有效的token");
+    }
+
+    const requestBody = {
+      token,
+      product_id: productId,
+    };
+
+    console.log("请求商品详情:", {
+      url: `${API_BASE_URL}/product/get_recipe`,
+      body: requestBody,
+    });
+
+    const response = await fetch(`${API_BASE_URL}/product/get_recipe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    // 获取响应文本
+    const responseText = await response.text();
+    console.log("服务器响应:", responseText);
+
+    // 尝试解析JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("JSON解析错误:", responseText);
+      throw new Error("服务器返回的数据格式不正确");
+    }
+
+    // 检查响应状态码
+    if (data.status_code !== 200) {
+      throw new Error(data.message || "获取商品详情失败");
+    }
+
+    const prepTime = await getProductPrepareTime(productId);
+
+    // 适配新的API返回数据格式
+    const finalData = {
+      id: data.product_id || productId,
+      name: "商品详情", // 这个会被传入的productName覆盖
+      ingredients: Array.isArray(data.recipe) ? data.recipe : [],
+      instructions: data.instruction ? [data.instruction] : [],
+      prepare_time: prepTime,
+    };
+    return finalData;
+  } catch (error) {
+    console.error("获取商品详情失败:", error);
+    // 返回一个基本的默认数据
+    return {
+      id: productId,
+      name: "error",
+      ingredients: ["error"],
+      instructions: ["error"],
+      prepare_time: 0,
+    };
+  }
 };
 
 export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
@@ -131,12 +172,6 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
       let detail = await getProductDetail(productId);
 
       // 如果找不到，使用默认数据但更新名称
-      if (detail.id === "p1") {
-        detail = {
-          ...MOCK_PRODUCT_DETAILS["p1"],
-          name: productName || "未知商品",
-        };
-      }
 
       setProductDetail(detail);
     } catch (error) {
@@ -170,7 +205,8 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
             <View style={styles.prepTimeContainer}>
               <Text style={styles.sectionTitle}>{t("prepTime")}</Text>
               <Text style={styles.prepTimeValue}>
-                {productDetail.prepare_time} {t("seconds")}
+                {productDetail.prepare_time}{" "}
+                {productDetail.prepare_time >= 60 ? t("minutes") : t("seconds")}
               </Text>
             </View>
           )}
@@ -193,46 +229,6 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
                 </Text>
               ))}
             </View>
-
-            {productDetail.nutritionInfo && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t("nutritionInfo")}</Text>
-                <View style={styles.nutritionGrid}>
-                  {productDetail.nutritionInfo.calories !== undefined && (
-                    <View style={styles.nutritionItem}>
-                      <Text style={styles.nutritionValue}>
-                        {productDetail.nutritionInfo.calories}
-                      </Text>
-                      <Text style={styles.nutritionLabel}>{t("calories")}</Text>
-                    </View>
-                  )}
-                  {productDetail.nutritionInfo.protein !== undefined && (
-                    <View style={styles.nutritionItem}>
-                      <Text style={styles.nutritionValue}>
-                        {productDetail.nutritionInfo.protein}g
-                      </Text>
-                      <Text style={styles.nutritionLabel}>{t("protein")}</Text>
-                    </View>
-                  )}
-                  {productDetail.nutritionInfo.fat !== undefined && (
-                    <View style={styles.nutritionItem}>
-                      <Text style={styles.nutritionValue}>
-                        {productDetail.nutritionInfo.fat}g
-                      </Text>
-                      <Text style={styles.nutritionLabel}>{t("fat")}</Text>
-                    </View>
-                  )}
-                  {productDetail.nutritionInfo.carbs !== undefined && (
-                    <View style={styles.nutritionItem}>
-                      <Text style={styles.nutritionValue}>
-                        {productDetail.nutritionInfo.carbs}g
-                      </Text>
-                      <Text style={styles.nutritionLabel}>{t("carbs")}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
           </ScrollView>
         </View>
       </View>
@@ -308,28 +304,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: colors.activeColor || "#4CAF50",
-  },
-  nutritionGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-around",
-  },
-  nutritionItem: {
-    alignItems: "center",
-    width: "45%",
-    backgroundColor: "#f9f9f9",
-    padding: 10,
-    borderRadius: 5,
-    margin: 5,
-  },
-  nutritionValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  nutritionLabel: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 5,
   },
 });

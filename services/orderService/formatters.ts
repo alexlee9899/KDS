@@ -96,18 +96,24 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       
       console.log("产品:", product.name, "分类:", productCategory);
       
+      // 处理选项
+      let options = [];
+      if (Array.isArray(product.option)) {
+        options = product.option.map((opt: any) => ({
+          name: opt.name || '选项',
+          value: String(opt.qty || 1),
+          price: opt.price_adjust || 0
+        }));
+      }
+      
       return {
         id: product._id || `item-${index}-${Date.now()}`,
         name: product.name || '未知商品',
         quantity: product.qty || 1,
         price: product.price || 0,
-        options: Array.isArray(product.option) ? product.option.map((opt: any) => ({
-          name: opt.name || '选项',
-          value: String(opt.qty || 1),
-          price: opt.price_adjust || 0
-        })) : [],
+        options: options,
         category: productCategory, // 使用确定的分类
-        prepare_time: product.prepare_time || 0, // 添加准备时间
+        prepare_time: product.prepare_time || 0, // 保留准备时间字段，但不显示
       };
     });
 

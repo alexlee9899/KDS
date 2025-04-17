@@ -71,17 +71,15 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
 
   // 根据时间获取状态文本和颜色
   const getStatusInfo = () => {
-    // 获取订单的总准备时间（以秒为单位）
-    const totalPrepareTimeSeconds = order.total_prepare_time || 0;
-    // 转换为分钟
-    const totalPrepareTimeMinutes = Math.floor(totalPrepareTimeSeconds / 60);
+    // 获取订单的总准备时间（min）
+    const totalPrepareTimeMinutes = order.total_prepare_time || 0;
 
     // 获取已经过去的时间（分钟）
     const elapsedMinutes = Math.floor(elapsedTime / 60);
 
     // 如果订单没有准备时间数据，则使用默认逻辑
     if (totalPrepareTimeMinutes === 0) {
-      if (elapsedMinutes < 5) {
+      if (elapsedMinutes < 1) {
         return { text: t("active"), color: colors.activeColor };
       } else if (elapsedMinutes < 8) {
         return { text: t("urgent"), color: colors.urgentColor };

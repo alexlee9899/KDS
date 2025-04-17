@@ -8,7 +8,7 @@ import {
   StyleProp,
   ViewStyle,
 } from "react-native";
-import { FormattedOrder } from "../services/types";
+import { FormattedOrder, OrderOption } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
@@ -123,7 +123,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
     // 设置选中的商品信息
     setSelectedProduct({
-      id: item.id || `p${Math.floor(Math.random() * 3) + 1}`, // 如果没有ID，随机使用mock数据的ID
+      id: item.id || order.id, // 使用产品ID
       name: item.name,
     });
     setShowProductDetail(true);
@@ -175,11 +175,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         >
           <View style={styles.itemNameContainer}>
             <Text style={styles.itemName}>{item.name}</Text>
-            {item.prepare_time > 0 && (
-              <Text style={styles.itemPrepareTime}>
-                {t("prepTime")}: {item.prepare_time}min
-              </Text>
-            )}
+            {/* 移除产品准备时间显示，改为显示选项信息
+            {item.options && item.options.length > 0 && (
+              <View style={styles.optionsContainer}>
+                {item.options.map((option: OrderOption, optIndex: number) => (
+                  <Text key={optIndex} style={styles.optionText}>
+                    {option.name}: {option.value}
+                  </Text>
+                ))}
+              </View>
+            )} */}
           </View>
           {completedItems[`${order.id}-item-${index}`] ? (
             <Ionicons
@@ -325,7 +330,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <Text style={styles.prepareTimeValue}>
                   {order.total_prepare_time}
                 </Text>{" "}
-                {t("seconds")}
+                min
               </Text>
             )}
 
@@ -462,9 +467,8 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   optionsContainer: {
-    marginLeft: 15,
-    marginTop: -5,
-    marginBottom: 5,
+    marginTop: 4,
+    marginLeft: 8,
   },
   optionRow: {
     flexDirection: "row",
@@ -537,5 +541,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
     fontWeight: "bold",
+  },
+  optionText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
   },
 });

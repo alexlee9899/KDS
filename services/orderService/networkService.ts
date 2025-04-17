@@ -116,8 +116,8 @@ export const fetchOrdersFromNetwork = async (
               if (product._id) {
                 const prepareTime = await getProductPrepareTime(product._id);
                 product.prepare_time = prepareTime;
-                totalPrepareTime += prepareTime * (product.qty || 1);
-                console.log(`产品 [${product.name || product._id}] 准备时间: ${prepareTime}秒`);
+                totalPrepareTime += prepareTime * (product.qty);
+                
               }
             } catch (err) {
               console.error(`获取产品 [${product?.name || product?._id || '未知产品'}] 准备时间失败:`, err);
@@ -128,7 +128,7 @@ export const fetchOrdersFromNetwork = async (
           
           // 添加总准备时间到订单
           order.total_prepare_time = totalPrepareTime;
-          console.log(`订单 #${order.order_num} 总准备时间: ${totalPrepareTime}秒`);
+          console.log(`订单 #${order.order_num} 总准备时间: ${totalPrepareTime}min`);
         }
       }
       
@@ -150,7 +150,8 @@ export const fetchOrdersFromNetwork = async (
 /**
  * 获取历史订单详情
  */
-export const fetchHistoryOrders = async (): Promise<any[]> => {
+
+export const fetchHistoryOrders = async (timeRange: [string, string]): Promise<any[]> => {
   try {
     // 获取token
     const token = await getToken();
@@ -160,10 +161,7 @@ export const fetchHistoryOrders = async (): Promise<any[]> => {
     }
     
     // 获取完整的天时间范围
-    const timeRange = [
-      new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-      new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
-    ];
+    
     
     // 准备请求体
     const requestBody = {

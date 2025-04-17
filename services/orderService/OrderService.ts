@@ -22,7 +22,7 @@ export class OrderService {
   // 内部状态存储
   private static networkOrders: FormattedOrder[] = [];
   private static tcpOrders: FormattedOrder[] = [];
-  private static networkPollingInterval: NodeJS.Timeout | null = null;
+  private static networkPollingInterval: ReturnType<typeof setInterval> | null = null;
   
   // 回调函数存储
   private static networkOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
@@ -246,10 +246,15 @@ export class OrderService {
   /**
    * 获取历史订单详情
    */
+  private static todayTimeRange: [string, string] = [
+    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+    new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+  ] as [string, string];
+
   static async getHistoryOrderDetails(): Promise<FormattedOrder[]> {
     try {
       // 获取原始历史订单数据
-      const rawOrders = await NetworkService.fetchHistoryOrders();
+      const rawOrders = await NetworkService.fetchHistoryOrders(this.todayTimeRange);
       
       // 创建包含过滤后订单的结果对象
       const result = { orders: rawOrders };

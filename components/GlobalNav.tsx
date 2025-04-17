@@ -67,6 +67,13 @@ export default function GlobalNav() {
           >
             <Text style={styles.buttonText}>{t("stockManagement")}</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navButton}
+            onPress={() => router.push("/(tabs)/dashboard")}
+          >
+            <Text style={styles.buttonText}>{t("dashboard")}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 右侧按钮 */}
