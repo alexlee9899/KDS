@@ -41,23 +41,52 @@ export default function Dashboard() {
     online: 0,
     other: 0,
   });
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  // 格式化日期的函数
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // 使用字符串类型来存储日期
+  const [startDateStr, setStartDateStr] = useState(formatDate(new Date()));
+  const [endDateStr, setEndDateStr] = useState(formatDate(new Date()));
+
+  // 添加日期格式验证函数
+  const isValidDateFormat = (dateStr: string): boolean => {
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regex.test(dateStr)) return false;
+
+    const [year, month, day] = dateStr.split("-").map(Number);
+    // 创建日期对象来验证日期是否有效
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    // 当日期字符串有效时，才获取订单
+    if (isValidDateFormat(startDateStr) && isValidDateFormat(endDateStr)) {
+      fetchOrders();
+    }
+  }, [startDateStr, endDateStr]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const timeRange: [string, string] = [
-        startDate.toISOString(),
-        endDate.toISOString(),
+        `${startDateStr} 00:00:00`,
+        `${endDateStr} 23:59:59`,
       ];
+      console.log("Fetching orders with time range:", timeRange);
       const orders = await NetworkService.fetchHistoryOrders(timeRange);
+      console.log("orders", orders);
+      console.log("orders.length", orders.length);
       setOrders(orders);
       analyzeOrders(orders);
     } catch (error) {
@@ -73,7 +102,6 @@ export default function Dashboard() {
       online: 0,
       other: 0,
     };
-
     orders.forEach((order) => {
       // 统计订单来源
       if (order.source === "kiosk") {
@@ -93,22 +121,6 @@ export default function Dashboard() {
     return `${Math.round((value / orders.length) * 100)}%`;
   };
 
-  const handleDateChange = (date: string, isStart: boolean) => {
-    try {
-      const newDate = new Date(date);
-      if (!isNaN(newDate.getTime())) {
-        if (isStart) {
-          setStartDate(newDate);
-        } else {
-          setEndDate(newDate);
-        }
-        fetchOrders();
-      }
-    } catch (error) {
-      console.error("Invalid date format");
-    }
-  };
-
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -118,18 +130,20 @@ export default function Dashboard() {
             <Text style={styles.dateLabel}>{t("startDate")}:</Text>
             <TextInput
               style={styles.dateInput}
-              value={startDate.toISOString().split("T")[0]}
-              onChangeText={(text) => handleDateChange(text, true)}
+              value={startDateStr}
+              onChangeText={setStartDateStr}
               placeholder="YYYY-MM-DD"
+              maxLength={10}
             />
           </View>
           <View style={styles.dateInputGroup}>
             <Text style={styles.dateLabel}>{t("endDate")}:</Text>
             <TextInput
               style={styles.dateInput}
-              value={endDate.toISOString().split("T")[0]}
-              onChangeText={(text) => handleDateChange(text, false)}
+              value={endDateStr}
+              onChangeText={setEndDateStr}
               placeholder="YYYY-MM-DD"
+              maxLength={10}
             />
           </View>
         </View>
@@ -300,12 +314,13 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   dateInput: {
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#ddd",
     borderRadius: 4,
+    padding: 8,
     width: 120,
     fontSize: 14,
+    backgroundColor: "#fff",
   },
   loadingContainer: {
     flex: 1,

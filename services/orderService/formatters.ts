@@ -42,7 +42,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const orderId = orderData.order_num || orderData.orderId || orderData.id || String(Date.now());
     
     // 提取并格式化订单项
-    const items = Array.isArray(orderData.items) ? orderData.items : [];
+    const items = Array.isArray(orderData.products) ? orderData.products : [];
     
     const formattedOrder: FormattedOrder = {
       id: orderId,

@@ -19,6 +19,7 @@ import { SocketTest } from "@/components/SocketTest";
 import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { colors } from "../../styles/color";
+import { SupportedLanguage } from "../../constants/translations";
 
 // KDS角色类型
 enum KDSRole {
@@ -138,9 +139,8 @@ export default function SettingsScreen() {
     }
   };
 
-  const toggleLanguage = async () => {
-    // 切换语言
-    const newLanguage = language === "en" ? "zh" : "en";
+  // 处理语言切换
+  const handleLanguageChange = async (newLanguage: SupportedLanguage) => {
     await changeLanguage(newLanguage);
   };
 
@@ -293,15 +293,20 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t("language")}</Text>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>
-            {language === "en" ? t("english") : t("chinese")}
-          </Text>
-          <Switch
-            value={language === "zh"}
-            onValueChange={toggleLanguage}
-            trackColor={{ false: "#767577", true: colors.activeColor }}
-            thumbColor="#f4f3f4"
-          />
+          <Text style={styles.settingLabel}>{t("selectLanguage")}:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={language}
+              style={styles.languagePicker}
+              onValueChange={(itemValue: SupportedLanguage) =>
+                handleLanguageChange(itemValue)
+              }
+              dropdownIconColor="#666"
+            >
+              <Picker.Item label={t("english")} value="en" />
+              <Picker.Item label={t("chinese")} value="zh" />
+            </Picker>
+          </View>
         </View>
       </View>
 
@@ -480,5 +485,17 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    overflow: "hidden",
+    width: 150,
+  },
+  languagePicker: {
+    width: 150,
+    height: 55,
+    color: "#333",
   },
 });

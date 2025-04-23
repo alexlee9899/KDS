@@ -255,6 +255,7 @@ export class OrderService {
     try {
       // 获取原始历史订单数据
       const rawOrders = await NetworkService.fetchHistoryOrders(this.todayTimeRange);
+      console.log("this.todayTimeRange",this.todayTimeRange)
       
       // 创建包含过滤后订单的结果对象
       const result = { orders: rawOrders };
