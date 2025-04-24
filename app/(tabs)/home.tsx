@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -15,33 +15,71 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@/styles/color";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder } from "@/services/types";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
 const CARD_MARGIN = 8;
 const STANDARD_CARDS_PER_ROW = 3;
-const COMPACT_CARDS_PER_ROW = 5;
+const DEFAULT_COMPACT_CARDS_PER_ROW = 5;
+
+// 设置相关的常量
+const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder } = useOrders();
   const [viewMode, setViewMode] = useState<"standard" | "compact">("standard");
   const { t } = useLanguage();
+  const [compactCardsPerRow, setCompactCardsPerRow] = useState<number>(
+    DEFAULT_COMPACT_CARDS_PER_ROW
+  );
 
-  // 加载保存的视图模式设置
-  useEffect(() => {
-    const loadViewMode = async () => {
-      try {
-        const savedMode = await AsyncStorage.getItem("viewMode");
-        if (savedMode === "compact" || savedMode === "standard") {
-          setViewMode(savedMode);
+  // 每次页面获得焦点时加载设置
+  useFocusEffect(
+    useCallback(() => {
+      const loadSettings = async () => {
+        try {
+          // 加载视图模式
+          const savedMode = await AsyncStorage.getItem("viewMode");
+          if (savedMode === "compact" || savedMode === "standard") {
+            setViewMode(savedMode);
+          }
+
+          // 加载Compact模式每行卡片数量
+          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+          );
+          if (savedCompactCardsPerRow) {
+            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+          }
+        } catch (error) {
+          console.error("加载设置失败:", error);
         }
-      } catch (error) {
-        console.error("加载视图模式失败:", error);
-      }
-    };
+      };
 
-    loadViewMode();
-  }, []);
+      loadSettings();
+
+      // 设置一个定时器，每秒检查一次设置变化
+      const intervalId = setInterval(async () => {
+        try {
+          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+          );
+          if (
+            savedCompactCardsPerRow &&
+            parseInt(savedCompactCardsPerRow) !== compactCardsPerRow
+          ) {
+            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+          }
+        } catch (error) {
+          console.error("检查设置变化失败:", error);
+        }
+      }, 1000);
+
+      // 清理函数
+      return () => clearInterval(intervalId);
+    }, [compactCardsPerRow])
+  );
 
   // 切换视图模式
   const toggleViewMode = async (mode: "standard" | "compact") => {
@@ -55,7 +93,7 @@ export default function HomeScreen() {
 
   // 根据视图模式计算每行卡片数
   const cardsPerRow =
-    viewMode === "compact" ? COMPACT_CARDS_PER_ROW : STANDARD_CARDS_PER_ROW;
+    viewMode === "compact" ? compactCardsPerRow : STANDARD_CARDS_PER_ROW;
 
   // 添加这个适配器函数
   const handleOrderRemove = (order: FormattedOrder) => {
@@ -123,7 +161,7 @@ export default function HomeScreen() {
                 viewMode === "compact" && styles.activeViewModeButtonText,
               ]}
             >
-              Compact
+              Compact ({compactCardsPerRow})
             </Text>
           </TouchableOpacity>
         </View>

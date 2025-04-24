@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  Switch,
   TouchableOpacity,
   Alert,
   TextInput,
@@ -14,11 +13,8 @@ import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PrinterTestCard } from "../../components/PrinterTestCard";
-import { SocketTest } from "@/components/SocketTest";
 import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { colors } from "../../styles/color";
 import { SupportedLanguage } from "../../constants/translations";
 
 // KDS角色类型
@@ -26,6 +22,10 @@ enum KDSRole {
   MASTER = "master",
   SLAVE = "slave",
 }
+
+// 设置相关的常量
+const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
+const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
@@ -38,6 +38,11 @@ export default function SettingsScreen() {
   const [subKdsList, setSubKdsList] = useState<
     { ip: string; category: CategoryType }[]
   >([]);
+
+  // 添加Compact模式下每行卡片数量状态
+  const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
+    DEFAULT_COMPACT_CARDS_PER_ROW
+  );
 
   // 加载保存的设置
   useEffect(() => {
@@ -60,6 +65,14 @@ export default function SettingsScreen() {
         const savedSubKds = await AsyncStorage.getItem("sub_kds_list");
         if (savedSubKds) setSubKdsList(JSON.parse(savedSubKds));
 
+        // 加载Compact模式每行卡片数量
+        const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          STORAGE_KEY_COMPACT_CARDS_PER_ROW
+        );
+        if (savedCompactCardsPerRow) {
+          setCompactCardsPerRow(savedCompactCardsPerRow);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("加载设置失败:", error);
@@ -78,7 +91,13 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem("master_ip", masterIP);
       await AsyncStorage.setItem("sub_kds_list", JSON.stringify(subKdsList));
 
-      Alert.alert("成功", "设置已保存，重启应用以应用更改");
+      // 保存Compact模式每行卡片数量
+      await AsyncStorage.setItem(
+        STORAGE_KEY_COMPACT_CARDS_PER_ROW,
+        compactCardsPerRow
+      );
+
+      Alert.alert("成功", "设置已保存");
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
@@ -144,6 +163,11 @@ export default function SettingsScreen() {
     await changeLanguage(newLanguage);
   };
 
+  // 处理Compact模式每行卡片数量变更
+  const handleCompactCardsPerRowChange = (value: string) => {
+    setCompactCardsPerRow(value);
+  };
+
   // 重置设置
   const resetSettings = () => {
     Alert.alert(t("resetSettings"), t("confirmReset"), [
@@ -158,6 +182,12 @@ export default function SettingsScreen() {
           await changeLanguage("en");
           // 重置其他设置
           await AsyncStorage.removeItem("viewMode");
+          // 重置Compact模式每行卡片数量
+          await AsyncStorage.setItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW,
+            DEFAULT_COMPACT_CARDS_PER_ROW
+          );
+          setCompactCardsPerRow(DEFAULT_COMPACT_CARDS_PER_ROW);
           // 可以添加其他需要重置的设置
         },
       },
@@ -278,15 +308,44 @@ export default function SettingsScreen() {
           </>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={saveSettings}>
+        <TouchableOpacity
+          style={[styles.saveButton, { maxWidth: 200, alignSelf: "center" }]}
+          onPress={saveSettings}
+        >
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* 显示设置卡片 */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
-        <Text style={styles.infoText}>{t("copyright")}</Text>
+        <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
+
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>{t("cardsPerRow")}:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={compactCardsPerRow}
+              style={styles.languagePicker}
+              onValueChange={handleCompactCardsPerRowChange}
+              dropdownIconColor="#666"
+            >
+              <Picker.Item label="3" value="3" />
+              <Picker.Item label="4" value="4" />
+              <Picker.Item label="5" value="5" />
+              <Picker.Item label="6" value="6" />
+            </Picker>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            { marginTop: 10, maxWidth: 200, alignSelf: "center" },
+          ]}
+          onPress={saveSettings}
+        >
+          <Text style={styles.saveButtonText}>{t("applyChanges")}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -308,6 +367,11 @@ export default function SettingsScreen() {
             </Picker>
           </View>
         </View>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+        <Text style={styles.infoText}>{t("copyright")}</Text>
       </View>
 
       {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
@@ -429,6 +493,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: "center",
     marginTop: 20,
+    paddingHorizontal: 20,
   },
   saveButtonText: {
     color: "white",

@@ -46,6 +46,9 @@ export const translations = {
     copyright: "© 2023 Pospal Australia Pty Ltd",
     confirm: "确认",
     confirmReset: "确定要重置所有设置吗？",
+    cardsPerRow: "每行显示卡片数量",
+    displaySettings: "显示设置",
+    applyChanges: "应用更改",
     
     // 库存管理
     stockList: "库存列表",
@@ -229,6 +232,9 @@ export const translations = {
     copyright: "© 2023 Pospal Australia Pty Ltd",
     confirm: "Confirm",
     confirmReset: "Are you sure you want to reset all settings?",
+    cardsPerRow: "Cards Per Row",
+    displaySettings: "Display Settings",
+    applyChanges: "Apply Changes",
     
     // Stock management
     stockList: "Stock List",
