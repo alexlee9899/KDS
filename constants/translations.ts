@@ -27,6 +27,10 @@ export const translations = {
     confirmComplete: "确认完成",
     confirmCancel: "确认取消",
     
+    // 登出相关
+    logoutConfirmTitle: "确认登出",
+    logoutConfirmMessage: "您确定要登出系统吗？",
+    
     // 订单来源
     kiosk: "自助点单",
     online: "线上订单",
@@ -43,7 +47,7 @@ export const translations = {
     resetSettings: "重置设置",
     systemInfo: "系统信息",
     systemVersion: "系统版本",
-    copyright: "© 2023 Pospal Australia Pty Ltd",
+    copyright: "© Vend88 Pty Ltd – 2025",
     confirm: "确认",
     confirmReset: "确定要重置所有设置吗？",
     cardsPerRow: "每行显示卡片数量",
@@ -71,6 +75,19 @@ export const translations = {
     refillStockFailed: "补充库存失败",
     updateStockFailed: "更新库存失败",
     enterStockQuantity: "输入库存数量",
+    
+    // 店铺选择相关
+    selectShop: "选择店铺",
+    noShopsAvailable: "没有可用的店铺",
+    shopCode: "店铺码",
+    refreshList: "刷新列表",
+    currentShop: "当前店铺",
+    shopDescription: "店铺描述",
+    loadingShops: "加载店铺列表中",
+    shopSelectError: "获取店铺列表失败",
+    noShopSelected: "未选择店铺",
+    saveShopFailed: "保存店铺信息失败",
+    unauthorizedError: "未授权，请重新登录",
     
     // 准备时间更新相关
     updatePrepTime: "更新准备时间",
@@ -213,6 +230,10 @@ export const translations = {
     confirmComplete: "Confirm Complete",
     confirmCancel: "Confirm Cancel",
     
+    // Logout related
+    logoutConfirmTitle: "Logout Confirmation",
+    logoutConfirmMessage: "Are you sure you want to logout?",
+    
     // Order sources
     kiosk: "Kiosk",
     online: "Online",
@@ -229,7 +250,7 @@ export const translations = {
     resetSettings: "Reset Settings",
     systemInfo: "System Information",
     systemVersion: "System Version",
-    copyright: "© 2023 Pospal Australia Pty Ltd",
+    copyright: "© Vend88 Pty Ltd – 2025",
     confirm: "Confirm",
     confirmReset: "Are you sure you want to reset all settings?",
     cardsPerRow: "Cards Per Row",
@@ -251,14 +272,27 @@ export const translations = {
     stockHistory: "Stock History",
     noProducts: "No Products",
     enterValidStock: "Please enter a valid stock quantity",
-    stockUpdatedTo: "Products stock is updated to",
+    stockUpdatedTo: "Stock updated to",
     markedAsSoldOut: "Selected products marked as sold out",
     markSoldOutFailed: "Failed to mark as sold out",
     refillStockFailed: "Failed to refill stock",
     updateStockFailed: "Failed to update stock",
     enterStockQuantity: "Enter stock quantity",
     
-    // Prep time update related
+    // 店铺选择相关
+    selectShop: "Select Shop",
+    noShopsAvailable: "No shops available",
+    shopCode: "Shop Code",
+    refreshList: "Refresh List",
+    currentShop: "Current Shop",
+    shopDescription: "Shop Description",
+    loadingShops: "Loading shops",
+    shopSelectError: "Failed to get shop list",
+    noShopSelected: "No shop selected",
+    saveShopFailed: "Failed to save shop information",
+    unauthorizedError: "Unauthorized, please login again",
+    
+    // 准备时间更新相关
     updatePrepTime: "Update Prep Time",
     enterPrepTime: "Enter preparation time",
     enterValidPrepTime: "Please enter a valid preparation time",
@@ -275,7 +309,7 @@ export const translations = {
     carbs: "Carbs",
     
     // Others
-    noOrders: "No Orders...",
+    noOrders: "Waiting for orders...",
     todayOrderHistory: "Today's Order History",
     save: "Save",
     edit: "Edit",

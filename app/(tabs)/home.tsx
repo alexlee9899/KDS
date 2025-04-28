@@ -33,6 +33,7 @@ export default function HomeScreen() {
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<number>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
+  const [selectedShopName, setSelectedShopName] = useState<string>("");
 
   // 每次页面获得焦点时加载设置
   useFocusEffect(
@@ -100,6 +101,21 @@ export default function HomeScreen() {
     removeOrder(order.id);
   };
 
+  useEffect(() => {
+    const loadShopInfo = async () => {
+      try {
+        const shopName = await AsyncStorage.getItem("selectedShopName");
+        if (shopName) {
+          setSelectedShopName(shopName);
+        }
+      } catch (error) {
+        console.error("加载店铺信息失败:", error);
+      }
+    };
+
+    loadShopInfo();
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -125,67 +141,76 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>
-          {t("newOrders")} ({orders.length})
-        </Text>
-
-        <View style={styles.viewModeContainer}>
-          <TouchableOpacity
-            style={[
-              styles.viewModeButton,
-              viewMode === "standard" && styles.activeViewModeButton,
-            ]}
-            onPress={() => toggleViewMode("standard")}
-          >
-            <Text
-              style={[
-                styles.viewModeButtonText,
-                viewMode === "standard" && styles.activeViewModeButtonText,
-              ]}
-            >
-              Standard
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.viewModeButton,
-              viewMode === "compact" && styles.activeViewModeButton,
-            ]}
-            onPress={() => toggleViewMode("compact")}
-          >
-            <Text
-              style={[
-                styles.viewModeButtonText,
-                viewMode === "compact" && styles.activeViewModeButtonText,
-              ]}
-            >
-              Compact ({compactCardsPerRow})
-            </Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+      {selectedShopName && (
+        <View style={styles.shopInfoContainer}>
+          <Text style={styles.shopInfoText}>
+            {t("currentShop")}: {selectedShopName}
+          </Text>
         </View>
-      </View>
+      )}
+      <ScrollView style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>
+            {t("newOrders")} ({orders.length})
+          </Text>
 
-      <View style={styles.cardsContainer}>
-        {orders.map((order) => (
-          <OrderCard
-            key={order.id}
-            order={order}
-            style={[
-              styles.cardStyle,
-              {
-                width:
-                  (width - PADDING * 2 - CARD_MARGIN * (cardsPerRow - 1)) /
-                  cardsPerRow,
-              },
-            ]}
-            onOrderComplete={handleOrderRemove}
-            onOrderCancel={handleOrderRemove}
-          />
-        ))}
-      </View>
-    </ScrollView>
+          <View style={styles.viewModeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.viewModeButton,
+                viewMode === "standard" && styles.activeViewModeButton,
+              ]}
+              onPress={() => toggleViewMode("standard")}
+            >
+              <Text
+                style={[
+                  styles.viewModeButtonText,
+                  viewMode === "standard" && styles.activeViewModeButtonText,
+                ]}
+              >
+                Standard
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.viewModeButton,
+                viewMode === "compact" && styles.activeViewModeButton,
+              ]}
+              onPress={() => toggleViewMode("compact")}
+            >
+              <Text
+                style={[
+                  styles.viewModeButtonText,
+                  viewMode === "compact" && styles.activeViewModeButtonText,
+                ]}
+              >
+                Compact ({compactCardsPerRow})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.cardsContainer}>
+          {orders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              style={[
+                styles.cardStyle,
+                {
+                  width:
+                    (width - PADDING * 2 - CARD_MARGIN * (cardsPerRow - 1)) /
+                    cardsPerRow,
+                },
+              ]}
+              onOrderComplete={handleOrderRemove}
+              onOrderCancel={handleOrderRemove}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -252,5 +277,16 @@ const styles = StyleSheet.create({
     fontSize: 38,
     color: "#151010",
     textAlign: "center",
+  },
+  shopInfoContainer: {
+    backgroundColor: colors.primary,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  shopInfoText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

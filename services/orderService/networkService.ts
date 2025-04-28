@@ -7,6 +7,7 @@ import * as Network from 'expo-network';
 import { getToken } from '../../utils/auth';
 import { API_BASE_URL } from './constants';
 import { ProductDetailResponse, FormattedOrder } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * 获取设备 IP 地址
@@ -77,11 +78,19 @@ export const fetchOrdersFromNetwork = async (
       return;
     }
     
+    // 获取选中的店铺ID
+    const selectedShopId = await AsyncStorage.getItem('selectedShopId');
+    if (!selectedShopId) {
+      console.error(`[请求${requestId}] 未选择店铺，请先选择店铺`);
+      return;
+    }
+    
     // 准备请求体
     const requestBody = {
       token: token,
       query: {
-        time: timeRange
+        time: timeRange,
+        shop_id: selectedShopId // 添加店铺ID过滤
       },
       detail: true,
       page_size: 10000,
@@ -148,29 +157,31 @@ export const fetchOrdersFromNetwork = async (
 };
 
 /**
- * 获取历史订单详情
+ * 获取历史订单
  */
-
-export const fetchHistoryOrders = async (timeRange: [string, string]): Promise<any[]> => {
+export const fetchHistoryOrders = async (timeRange: [string, string]) => {
   try {
     // 获取token
     const token = await getToken();
     if (!token) {
-      console.error('无法获取访问令牌，请先登录');
-      return [];
+      throw new Error('未授权，无法获取历史订单');
     }
     
-    // 获取完整的天时间范围
+    // 获取选中的店铺ID
+    const selectedShopId = await AsyncStorage.getItem('selectedShopId');
+    if (!selectedShopId) {
+      throw new Error('未选择店铺，请先选择店铺');
+    }
     
-    
-    // 准备请求体
+    // 构建请求
     const requestBody = {
       token: token,
       query: {
-        time: timeRange
+        time: timeRange,
+        shop_id: selectedShopId // 添加店铺ID过滤
       },
       detail: true,
-      page_size: 10000,
+      page_size: 1000,
       page_idx: 0
     };
     
@@ -178,30 +189,20 @@ export const fetchHistoryOrders = async (timeRange: [string, string]): Promise<a
     const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP错误! 状态: ${response.status}`);
+      throw new Error(`HTTP Error: ${response.status}`);
     }
     
-    // 解析响应内容为JSON
     const result = await response.json();
-    
-    // 检查数据格式
-    if (!result.orders || !Array.isArray(result.orders)) {
-      console.warn('返回的数据没有orders数组:', result);
-      return [];
-    }
-    
-    // 在格式化前先过滤掉 pick_method 为 'TEMP' 的订单
-    const filteredOrders = result.orders.filter((order: any) => order.pick_method !== 'TEMP');
-    
-    return filteredOrders;
+    console.log("result！！！",result)
+    return result.orders || [];
   } catch (error) {
-    console.error('获取历史订单失败:', error);
-    return []; // 返回空数组而不是抛出错误
+    console.error('获取历史订单出错:', error);
+    throw error;
   }
 }; 

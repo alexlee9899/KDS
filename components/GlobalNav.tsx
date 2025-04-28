@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, TouchableOpacity, Text, StyleSheet, Image } from "react-native";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Image,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -27,14 +34,30 @@ export default function GlobalNav() {
   };
 
   const handleLogout = async () => {
-    try {
-      const success = await auth.logout();
-      if (success) {
-        router.replace("/login");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
+    // 显示确认对话框
+    Alert.alert(
+      t("logoutConfirmTitle") || "确认登出",
+      t("logoutConfirmMessage") || "您确定要登出系统吗？",
+      [
+        {
+          text: t("cancel") || "取消",
+          style: "cancel",
+        },
+        {
+          text: t("confirm") || "确认",
+          onPress: async () => {
+            try {
+              const success = await auth.logout();
+              if (success) {
+                router.replace("/login");
+              }
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
