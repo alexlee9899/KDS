@@ -10,10 +10,12 @@ import {
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useOrders } from "../contexts/OrderContext";
 
 export default function GlobalNav() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { networkStatus } = useOrders();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 更新当前时间
@@ -60,6 +62,15 @@ export default function GlobalNav() {
     );
   };
 
+  // 获取网络状态图标
+  const getNetworkStatusIcon = () => {
+    if (networkStatus === "connected") {
+      return require("../assets/icon/wifiConnected.png");
+    } else {
+      return require("../assets/icon/wifiDisconnected.png");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.navContainer}>
@@ -75,6 +86,13 @@ export default function GlobalNav() {
             onPress={() => router.push("/(tabs)/home")}
           >
             <Text style={styles.buttonText}>{t("newOrders")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navButton}
+            onPress={() => router.push("/(tabs)/pre-orders")}
+          >
+            <Text style={styles.buttonText}>{t("preOrders")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -101,6 +119,11 @@ export default function GlobalNav() {
 
         {/* 右侧按钮 */}
         <View style={styles.rightSection}>
+          {/* 网络状态图标 */}
+          <View style={styles.iconButton}>
+            <Image source={getNetworkStatusIcon()} style={styles.iconImage} />
+          </View>
+
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/settings")}

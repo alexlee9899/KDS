@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_API } from '../config/api';
 
 const API_BASE_URL = BASE_API;
-const warehouseId = '6672310309b356dd04293cb9';
+
 // 定义库存项接口
 export interface StockItem {
   name: string;
@@ -18,6 +18,52 @@ export interface StockResponse {
 }
 
 export class StockService {
+  static async getAllWarehouseId(): Promise<{[key: string]: string}|null> {
+    const token = await this.getToken();
+    const response = await fetch(`${API_BASE_URL}/shop/list_business`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: token
+      })
+    });
+    const data = await response.json();
+    
+    
+    const businessIds: string[] = [];
+    for(const business of data.business){
+      businessIds.push(business.business_id);
+    };
+    
+    
+    const warehouseIdResponses = await Promise.all(
+      businessIds.map(businessId => 
+        fetch(`${API_BASE_URL}/search/warehouse_search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            "query":{
+            "business_id": businessId},
+            "detail":true
+          })
+        }).then(res => res.json())
+      )
+    );
+
+    
+    // 合并所有仓库ID
+    const warehouseIds = Object.fromEntries(
+      warehouseIdResponses
+      .flatMap(resp => resp.warehouses || [])        
+      .map(wh => [wh.name, wh._id])           
+    );
+    // console.log("最终生成的仓库映射:", warehouseIds);
+    return warehouseIds;
+  }
   // 获取仓库库存
   static async getWarehouseStock(warehouseId: string): Promise<StockResponse> {
     const token = await this.getToken();

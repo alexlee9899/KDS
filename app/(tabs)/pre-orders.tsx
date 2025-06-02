@@ -7,18 +7,15 @@ import {
   Text,
   Dimensions,
   TouchableOpacity,
-  Modal,
-  FlatList,
 } from "react-native";
 import { OrderCard } from "../../components/OrderCard";
-import { useOrders } from "../../contexts/OrderContext";
+import { usePreOrders } from "../../contexts/PreOrderContext";
 import { theme } from "../../styles/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@/styles/color";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder } from "@/services/types";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
@@ -31,20 +28,16 @@ const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
 // 计算可用宽度
 const AVAILABLE_WIDTH = width - PADDING * 2; // 减去container的左右padding
-const CARD_WIDTH_ADJUSTMENT = 5; // 微调卡片宽度的值
+const CARD_WIDTH_ADJUSTMENT = 11; // 微调卡片宽度的值
 
-export default function HomeScreen() {
-  const { orders, loading, error, removeOrder } = useOrders();
+export default function PreOrdersScreen() {
+  const { orders, loading, error, removeOrder } = usePreOrders();
   const [viewMode, setViewMode] = useState<"standard" | "compact">("standard");
   const { t } = useLanguage();
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<number>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
   const [selectedShopName, setSelectedShopName] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
 
   // 每次页面获得焦点时加载设置
   useFocusEffect(
@@ -93,52 +86,6 @@ export default function HomeScreen() {
     }, [compactCardsPerRow])
   );
 
-  // 提取所有可用的商品分类
-  useEffect(() => {
-    if (orders && orders.length > 0) {
-      const categories = new Set<string>();
-      categories.add("all"); // 添加"全部"选项
-
-      // 添加调试日志
-      console.log("开始分析订单中的商品分类...");
-      console.log(`总共有 ${orders.length} 个订单`);
-
-      orders.forEach((order) => {
-        if (order.products && order.products.length > 0) {
-          console.log(`订单 ${order.id} 有 ${order.products.length} 个商品`);
-
-          order.products.forEach((product) => {
-            console.log(
-              `商品: ${product.name}, 分类: ${product.category || "无分类"}`
-            );
-            if (product.category) {
-              categories.add(product.category);
-            }
-          });
-        }
-      });
-
-      const categoryArray = Array.from(categories);
-      console.log("找到的所有分类:", categoryArray);
-      setAvailableCategories(categoryArray);
-    }
-  }, [orders]);
-
-  // 根据分类筛选订单
-  useEffect(() => {
-    if (categoryFilter === "all") {
-      setFilteredOrders(orders);
-    } else {
-      const filtered = orders.filter((order) => {
-        // 检查订单中是否有至少一个产品属于所选类别
-        return order.products.some(
-          (product) => product.category === categoryFilter
-        );
-      });
-      setFilteredOrders(filtered);
-    }
-  }, [categoryFilter, orders]);
-
   // 切换视图模式
   const toggleViewMode = async (mode: "standard" | "compact") => {
     setViewMode(mode);
@@ -184,11 +131,6 @@ export default function HomeScreen() {
   if (orders.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        {selectedShopName && (
-          <View style={styles.shopNameContainer}>
-            <Text style={styles.shopNameText}>{selectedShopName}</Text>
-          </View>
-        )}
         <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
       </View>
     );
@@ -204,72 +146,14 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {selectedShopName && (
-        <View style={styles.shopNameContainer}>
-          <Text style={styles.shopNameText}>{selectedShopName}</Text>
-        </View>
-      )}
-
-      <ScrollView style={styles.scrollContainer}>
+      <ScrollView style={styles.container}>
         <View style={styles.headerContainer}>
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>
-              {t("newOrders")} ({filteredOrders.length})
-            </Text>
-
-            {/* 分类筛选下拉列表 */}
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
-            >
-              <Text style={styles.filterButtonText}>
-                {categoryFilter === "all" ? t("allCategories") : categoryFilter}
-              </Text>
-              <Ionicons
-                name={showCategoryDropdown ? "chevron-up" : "chevron-down"}
-                size={16}
-                color="white"
-              />
-            </TouchableOpacity>
-
-            {/* 分类下拉选项 */}
-            <Modal
-              visible={showCategoryDropdown}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setShowCategoryDropdown(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowCategoryDropdown(false)}
-              >
-                <View style={styles.dropdownContainer}>
-                  <FlatList
-                    data={availableCategories}
-                    keyExtractor={(item) => item}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.dropdownItem,
-                          categoryFilter === item &&
-                            styles.selectedDropdownItem,
-                        ]}
-                        onPress={() => {
-                          setCategoryFilter(item);
-                          setShowCategoryDropdown(false);
-                        }}
-                      >
-                        <Text style={styles.dropdownItemText}>
-                          {item === "all" ? t("allCategories") : item}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              </TouchableOpacity>
-            </Modal>
-          </View>
+          <Text style={styles.title}>
+            {selectedShopName
+              ? `${selectedShopName.toUpperCase()} ${t("preOrders")}`
+              : t("preOrders")}{" "}
+            ({orders.length})
+          </Text>
 
           <View style={styles.viewModeContainer}>
             <TouchableOpacity
@@ -308,7 +192,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {filteredOrders.map((order) => (
+          {orders.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -318,9 +202,9 @@ export default function HomeScreen() {
                   width:
                     (AVAILABLE_WIDTH - CARD_MARGIN * (cardsPerRow - 1)) /
                       cardsPerRow -
-                    11,
+                    CARD_WIDTH_ADJUSTMENT,
                   marginRight:
-                    (filteredOrders.indexOf(order) + 1) % cardsPerRow === 0
+                    (orders.indexOf(order) + 1) % cardsPerRow === 0
                       ? 0
                       : CARD_MARGIN,
                 },
@@ -339,23 +223,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.backgroundColor,
-  },
-  scrollContainer: {
-    flex: 1,
     padding: PADDING,
-  },
-  shopNameContainer: {
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: PADDING,
-    marginBottom: 5,
-  },
-  shopNameText: {
-    color: "white",
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    textTransform: "uppercase",
   },
   headerContainer: {
     flexDirection: "row",
@@ -363,61 +231,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  titleSection: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#1a1a1a",
-    marginRight: 15,
-  },
-  filterButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  filterButtonText: {
-    color: "white",
-    fontWeight: "500",
-    fontSize: 14,
-    marginRight: 5,
-  },
-  modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
-    paddingTop: 150,
-    paddingLeft: 170,
-  },
-  dropdownContainer: {
-    width: 200,
-    maxHeight: 300,
-    backgroundColor: "white",
-    borderRadius: 8,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  dropdownItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  selectedDropdownItem: {
-    backgroundColor: "#f0f0f0",
-  },
-  dropdownItemText: {
-    fontSize: 16,
-    color: "#333",
   },
   viewModeContainer: {
     flexDirection: "row",

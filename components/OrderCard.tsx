@@ -58,7 +58,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   }>({});
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // 添加商品详情弹窗状态
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -134,14 +133,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     // 调用完成订单的回调
     if (onOrderComplete) {
       onOrderComplete(order);
-    }
-  };
-
-  const handleCancelConfirm = () => {
-    setShowCancelConfirm(false);
-    // 调用取消订单的回调
-    if (onOrderCancel) {
-      onOrderCancel(order);
     }
   };
 
@@ -277,17 +268,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             onCancel={() => setShowDoneConfirm(false)}
           />
 
-          <ConfirmModal
-            visible={showCancelConfirm}
-            title={t("cancel")}
-            message={`${t("confirmCancel")} #${order.order_num}?`}
-            confirmText={t("cancel")}
-            cancelText={t("cancel")}
-            onConfirm={handleCancelConfirm}
-            onCancel={() => setShowCancelConfirm(false)}
-            isDanger
-          />
-
           {/* 添加商品详情弹窗 */}
           {selectedProduct && (
             <ProductDetailPopup
@@ -347,7 +327,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <OrderActions
               orderId={order.id}
               onDone={() => setShowDoneConfirm(true)}
-              onCancel={() => setShowCancelConfirm(true)}
+              onCancel={() => {
+                // 保留空函数，因为不需要取消订单的逻辑
+              }}
             />
           </View>
         )}

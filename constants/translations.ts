@@ -3,6 +3,7 @@ export const translations = {
   zh: {
     // 导航
     newOrders: "新订单",
+    preOrders: "预订单",
     orderHistory: "订单历史",
     stockManagement: "库存管理",
     settings: "设置",
@@ -206,6 +207,7 @@ export const translations = {
   en: {
     // Navigation
     newOrders: "New Orders",
+    preOrders: "Pre Orders",
     orderHistory: "Order History",
     stockManagement: "Stock Management",
     settings: "Settings",

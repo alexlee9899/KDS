@@ -88,9 +88,9 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const formattedItems = order.products.map((product: any, index: number) => {
       // 处理category，取数组的第一个元素
       let productCategory = "default";
-      
+      console.log("product.category is ============ : ", product.category);
       // 检查产品分类信息
-      if (Array.isArray(product.category) && product.category.length > 0) {
+      if (product.category.length > 0) {
         productCategory = product.category[0];
       }
       

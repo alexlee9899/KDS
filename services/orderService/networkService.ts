@@ -21,10 +21,11 @@ export const getDeviceIP = async (): Promise<string> => {
     console.error("获取IP地址失败:", error);
     return "unknown";
   }
-};
+}
 
 /**
  * 从服务器获取产品详情
+ * 
  */
 export const getProductDetail = async (productId: string): Promise<ProductDetailResponse> => {
   try {
@@ -109,7 +110,7 @@ export const fetchOrdersFromNetwork = async (
     if (!response.ok) {
       return;
     }
-
+    
     const result = await response.json();
     
     // 检查返回的订单数据

@@ -164,6 +164,12 @@ export class OrderService {
         console.error('TCP服务器初始化失败，但继续使用网络模式:', err);
       });
       
+      // 设置TCP回调函数
+      this.setTCPCallback((orderData) => {
+        console.log('收到TCP订单数据:', orderData);
+        this.addTCPOrder(orderData);
+      });
+      
       console.log('===== 初始化订单系统完成 =====');
       return true;
     } catch (error) {

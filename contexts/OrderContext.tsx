@@ -49,6 +49,39 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     getKDSRole();
   }, []);
 
+  // 网络状态监控
+  useEffect(() => {
+    let networkCheckInterval: ReturnType<typeof setInterval>;
+
+    // 检查网络状态的函数
+    const checkNetworkStatus = async () => {
+      try {
+        const netState = await Network.getNetworkStateAsync();
+        if (netState.isConnected && netState.isInternetReachable) {
+          setNetworkStatus("connected");
+        } else {
+          setNetworkStatus("disconnected");
+        }
+      } catch (error) {
+        console.error("检查网络状态失败:", error);
+        setNetworkStatus("unknown");
+      }
+    };
+
+    // 初始检查
+    checkNetworkStatus();
+
+    // 设置定期检查 (每10秒检查一次)
+    networkCheckInterval = setInterval(checkNetworkStatus, 10000);
+
+    return () => {
+      // 清理定时器
+      if (networkCheckInterval) {
+        clearInterval(networkCheckInterval);
+      }
+    };
+  }, []);
+
   // 初始化订单系统
   useEffect(() => {
     const initSystem = async () => {

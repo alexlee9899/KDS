@@ -11,8 +11,8 @@ import {
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "../contexts/LanguageContext";
-import { getToken } from "../utils/auth";
-
+import { getToken, auth } from "../utils/auth";
+import { BASE_API } from "../config/api";
 interface Shop {
   _id: string;
   name: string;
@@ -41,7 +41,7 @@ export default function ShopSelectScreen() {
         return;
       }
 
-      const response = await fetch("https://vend88.com/shop/list_shop", {
+      const response = await fetch(`${BASE_API}/shop/list_shop`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,7 +115,18 @@ export default function ShopSelectScreen() {
           contentContainerStyle={styles.list}
         />
       )}
-
+      <TouchableOpacity
+        style={[
+          styles.refreshButton,
+          { backgroundColor: "#e74c3c", marginBottom: 10 },
+        ]}
+        onPress={async () => {
+          await auth.logout();
+          router.replace("/login" as any);
+        }}
+      >
+        <Text style={styles.refreshButtonText}>{t("logout") || "Relogin"}</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.refreshButton} onPress={fetchShops}>
         <Text style={styles.refreshButtonText}>{t("refreshList")}</Text>
       </TouchableOpacity>
@@ -184,6 +195,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginTop: 20,
+    width: "20%",
+    alignSelf: "center",
   },
   refreshButtonText: {
     color: "white",
