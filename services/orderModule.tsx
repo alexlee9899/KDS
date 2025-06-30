@@ -86,6 +86,5 @@ class OrderModule {
     }
   }
 }
-
 const orderModule = new OrderModule();
 export default orderModule;

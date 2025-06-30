@@ -24,7 +24,11 @@ public class MyAppPackage implements ReactPackage {
    public List<NativeModule> createNativeModules(
            ReactApplicationContext reactContext) {
        List<NativeModule> modules = new ArrayList<>();
-        modules.add(new OrderHandlerModule(reactContext));
+       modules.add(new OrderHandlerModule(reactContext));
+       
+       // 添加后台服务控制模块
+       modules.add(new KDSBackgroundServiceModule(reactContext));
+       
        return modules;
    }
 

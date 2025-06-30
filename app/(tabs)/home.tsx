@@ -139,6 +139,87 @@ export default function HomeScreen() {
     }
   }, [categoryFilter, orders]);
 
+  // 子KDS根据目标分类过滤显示
+  useEffect(() => {
+    const checkKDSRole = async () => {
+      try {
+        const role = await AsyncStorage.getItem("kds_role");
+        const isSlaveKDS = role === "slave";
+
+        if (isSlaveKDS) {
+          // 获取子KDS的分类设置
+          const categoryStr = await AsyncStorage.getItem("kds_category");
+          const kdsCategory = categoryStr || "all";
+
+          console.log(`子KDS分类设置: ${kdsCategory}`);
+
+          // 自动设置分类过滤器
+          if (kdsCategory !== "all") {
+            setCategoryFilter(kdsCategory);
+            console.log(`已自动设置分类过滤器为: ${kdsCategory}`);
+
+            // 过滤订单中的商品，只保留匹配当前分类的商品
+            const ordersWithFilteredProducts = orders
+              .map((order) => {
+                // 首先检查订单是否应该显示（基于targetCategory）
+                if (
+                  order.targetCategory &&
+                  order.targetCategory !== kdsCategory &&
+                  kdsCategory !== "all"
+                ) {
+                  return null; // 不显示不匹配的订单
+                }
+
+                // 过滤订单中的商品，只保留匹配分类的
+                const filteredProducts = order.products.filter(
+                  (product) =>
+                    product.category === kdsCategory || kdsCategory === "all"
+                );
+
+                // 如果过滤后没有商品，则不显示此订单
+                if (filteredProducts.length === 0) {
+                  return null;
+                }
+
+                // 返回带有过滤后商品的订单
+                return {
+                  ...order,
+                  products: filteredProducts,
+                };
+              })
+              .filter((order) => order !== null) as FormattedOrder[];
+
+            console.log(
+              `过滤后的订单数量: ${ordersWithFilteredProducts.length}`
+            );
+            setFilteredOrders(ordersWithFilteredProducts);
+            return; // 提前返回，不再执行下面的过滤逻辑
+          }
+
+          // 如果分类是"all"，则只根据targetCategory过滤
+          const filteredByTarget = orders.filter((order) => {
+            // 如果是"all"分类或没有targetCategory，显示所有订单
+            if (kdsCategory === "all" || !order.targetCategory) {
+              return true;
+            }
+
+            // 检查订单的targetCategory是否与KDS分类匹配
+            return order.targetCategory === kdsCategory;
+          });
+
+          console.log(
+            `根据目标分类过滤后的订单数量: ${filteredByTarget.length}`
+          );
+          setFilteredOrders(filteredByTarget);
+        }
+      } catch (error) {
+        console.error("检查KDS角色失败:", error);
+      }
+    };
+
+    checkKDSRole();
+  }, [orders]);
+
   // 切换视图模式
   const toggleViewMode = async (mode: "standard" | "compact") => {
     setViewMode(mode);

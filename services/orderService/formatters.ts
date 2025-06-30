@@ -39,13 +39,14 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
     // 确保有订单ID
-    const orderId = orderData.order_num || orderData.orderId || orderData.id || String(Date.now());
+    const orderId = orderData.order_num || orderData.orderId || orderData._id || String(Date.now());
     
     // 提取并格式化订单项
     const items = Array.isArray(orderData.products) ? orderData.products : [];
     
     const formattedOrder: FormattedOrder = {
       id: orderId,
+      _id: orderId,
       orderTime: orderData.time || new Date().toISOString(),
       pickupMethod: orderData.pickupMethod || orderData.pick_method || "未知",
       pickupTime: orderData.pickupTime || orderData.pick_time || new Date().toISOString(),
@@ -69,6 +70,8 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     // 返回一个基本订单对象
     return {
       id: String(Date.now()),
+      _id: String(Date.now()),
+      orderTime:String(Date.now()),
       pickupMethod: "格式化错误",
       pickupTime: new Date().toISOString(),
       order_num: String(Date.now()),
@@ -127,6 +130,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     
     return {
       id: order.order_num.toString(),
+      _id: order._id || order.order_num.toString(),
       orderTime: order.time,
       pickupMethod: order.pick_method,
       pickupTime: sydneyPickupTime, // 使用转换后的悉尼时间
@@ -142,6 +146,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     // 返回基本订单对象而不是抛出错误
     return {
       id: (order.order_num || Date.now()).toString(),
+      _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
       pickupMethod: order.pick_method || '未知',
       pickupTime: order.pick_time || new Date().toISOString(),

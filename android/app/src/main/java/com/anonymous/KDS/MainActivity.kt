@@ -2,6 +2,7 @@ package com.anonymous.KDS
 
 import expo.modules.splashscreen.SplashScreenManager
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 
@@ -22,6 +23,22 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+    
+    // 启动后台服务
+    startKDSBackgroundService()
+  }
+
+  /**
+   * 启动KDS后台服务
+   */
+  private fun startKDSBackgroundService() {
+    val serviceIntent = Intent(this, KDSBackgroundService::class.java)
+    
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      startForegroundService(serviceIntent)
+    } else {
+      startService(serviceIntent)
+    }
   }
 
   /**

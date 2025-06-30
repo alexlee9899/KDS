@@ -31,12 +31,22 @@ export class StockService {
     });
     const data = await response.json();
     
+    // 添加检查确保data.business存在且是数组
+    if (!data || !data.business || !Array.isArray(data.business)) {
+      console.error("获取仓库列表失败: data.business不是数组或不存在", data);
+      return {};
+    }
     
     const businessIds: string[] = [];
     for(const business of data.business){
       businessIds.push(business.business_id);
     };
     
+    // 检查businessIds是否为空
+    if (businessIds.length === 0) {
+      console.log("没有找到任何业务ID");
+      return {};
+    }
     
     const warehouseIdResponses = await Promise.all(
       businessIds.map(businessId => 
@@ -58,10 +68,11 @@ export class StockService {
     // 合并所有仓库ID
     const warehouseIds = Object.fromEntries(
       warehouseIdResponses
-      .flatMap(resp => resp.warehouses || [])        
-      .map(wh => [wh.name, wh._id])           
+      .flatMap(resp => resp && resp.warehouses ? resp.warehouses : [])        
+      .map(wh => wh ? [wh.name, wh._id] : [])
+      .filter(item => item.length === 2) // 过滤掉空数组
     );
-    // console.log("最终生成的仓库映射:", warehouseIds);
+    console.log("最终生成的仓库映射:", warehouseIds);
     return warehouseIds;
   }
   // 获取仓库库存
@@ -165,11 +176,20 @@ export class StockService {
   // 获取Token辅助方法
   private static async getToken(): Promise<string | null> {
     try {
+      console.log("开始获取token...");
       const token = await AsyncStorage.getItem("token");
-      console.log("token", token);
+      if (!token) {
+        console.error("token不存在或为空");
+        return null;
+      }
+      console.log("成功获取token:", token.substring(0, 10) + "...");
       return token;
     } catch (error) {
       console.error("获取token错误:", error);
+      if (error instanceof Error) {
+        console.error("错误信息:", error.message);
+        console.error("错误堆栈:", error.stack);
+      }
       return null;
     }
   }

@@ -1,7 +1,12 @@
 package com.anonymous.KDS
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
+import android.content.BroadcastReceiver
+import android.os.Bundle
 import com.anonymous.KDS.KDSPackage
 
 import com.facebook.react.PackageList
@@ -16,6 +21,7 @@ import com.facebook.soloader.SoLoader
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
+import com.facebook.react.modules.core.DeviceEventManagerModule
 
 class MainApplication : Application(), ReactApplication {
 
@@ -51,6 +57,30 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+    
+    // 注册广播接收器，用于接收后台服务的消息
+    registerOrderCheckReceiver()
+  }
+
+  /**
+   * 注册订单检查广播接收器
+   */
+  private fun registerOrderCheckReceiver() {
+    val filter = IntentFilter("com.anonymous.KDS.CHECK_ORDERS")
+    registerReceiver(object : BroadcastReceiver() {
+      override fun onReceive(context: Context, intent: Intent) {
+        // 当收到广播时，通知JS层检查新订单
+        // 由于这里无法直接调用JS方法，我们可以通过DeviceEventEmitter发送事件
+        val reactInstanceManager = reactNativeHost.reactInstanceManager
+        val reactContext = reactInstanceManager.currentReactContext
+        
+        if (reactContext != null) {
+          // 发送事件到JS层
+          reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("checkNewOrders", null)
+        }
+      }
+    }, filter)
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

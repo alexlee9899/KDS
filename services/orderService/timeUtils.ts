@@ -62,7 +62,7 @@ export const getTimeRangeAroundNow = (): [string, string] => {
   
   // 返回UTC格式的时间范围（服务器时区）
   return [formatDate(fiveSecondsAgo), formatDate(todayEnd)];
-};
+}; 
 
 // 获取未来7天的时间范围
 export const getNextSevenDaysRange = (): [string, string] => {

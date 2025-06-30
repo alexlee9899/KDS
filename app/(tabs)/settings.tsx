@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  Switch,
+  Platform,
 } from "react-native";
 import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
@@ -16,6 +18,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
+import { DistributionService } from "@/services/distributionService";
+import {
+  startBackgroundService,
+  stopBackgroundService,
+  isBackgroundServiceRunning,
+} from "@/services/backgroundService";
 
 // KDS角色类型
 enum KDSRole {
@@ -30,7 +38,7 @@ const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
-  const [port, setPort] = useState<string>("4321"); // 默认端口
+  const [port, setPort] = useState<string>("4322"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
   const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.MASTER);
   const [masterIP, setMasterIP] = useState<string>("");
@@ -38,11 +46,21 @@ export default function SettingsScreen() {
   const [subKdsList, setSubKdsList] = useState<
     { ip: string; category: CategoryType }[]
   >([]);
+  const [assignedCategory, setAssignedCategory] = useState<CategoryType>(
+    CategoryType.DRINKS
+  );
+  const [kdsCategory, setKdsCategory] = useState<CategoryType>(
+    CategoryType.ALL
+  );
 
   // 添加Compact模式下每行卡片数量状态
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
+
+  // 在组件中添加后台服务状态和控制函数
+  const [backgroundServiceRunning, setBackgroundServiceRunning] =
+    useState<boolean>(false);
 
   // 加载保存的设置
   useEffect(() => {
@@ -73,6 +91,12 @@ export default function SettingsScreen() {
           setCompactCardsPerRow(savedCompactCardsPerRow);
         }
 
+        // 加载子KDS分类设置
+        const savedCategory = await AsyncStorage.getItem("kds_category");
+        if (savedCategory) {
+          setKdsCategory(savedCategory as CategoryType);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("加载设置失败:", error);
@@ -82,6 +106,51 @@ export default function SettingsScreen() {
 
     loadSettings();
   }, []);
+
+  // 检查后台服务状态
+  useEffect(() => {
+    const checkBackgroundService = async () => {
+      if (Platform.OS === "android") {
+        const isRunning = await isBackgroundServiceRunning();
+        setBackgroundServiceRunning(isRunning);
+      }
+    };
+
+    checkBackgroundService();
+  }, []);
+
+  // 控制后台服务
+  const toggleBackgroundService = async () => {
+    if (backgroundServiceRunning) {
+      const stopped = await stopBackgroundService();
+      if (stopped) {
+        setBackgroundServiceRunning(false);
+        Alert.alert(
+          t("success") || "成功",
+          t("backgroundServiceStopped") || "后台服务已停止"
+        );
+      } else {
+        Alert.alert(
+          t("error") || "错误",
+          t("failedToStopService") || "停止服务失败"
+        );
+      }
+    } else {
+      const started = await startBackgroundService();
+      if (started) {
+        setBackgroundServiceRunning(true);
+        Alert.alert(
+          t("success") || "成功",
+          t("backgroundServiceStarted") || "后台服务已启动"
+        );
+      } else {
+        Alert.alert(
+          t("error") || "错误",
+          t("failedToStartService") || "启动服务失败"
+        );
+      }
+    }
+  };
 
   // 保存设置
   const saveSettings = async () => {
@@ -97,6 +166,11 @@ export default function SettingsScreen() {
         compactCardsPerRow
       );
 
+      // 如果是子KDS，同时保存分类设置
+      if (kdsRole === KDSRole.SLAVE) {
+        await AsyncStorage.setItem("kds_category", kdsCategory);
+      }
+
       Alert.alert("成功", "设置已保存");
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
@@ -104,7 +178,7 @@ export default function SettingsScreen() {
   };
 
   // 添加子KDS - 自动分配品类
-  const addSubKds = () => {
+  const addSubKds = async () => {
     if (!newSubKdsIP.trim()) {
       Alert.alert("错误", "请输入IP地址");
       return;
@@ -128,16 +202,51 @@ export default function SettingsScreen() {
     const categoryIndex = subKdsList.length % categories.length;
     const assignedCategory = categories[categoryIndex];
 
-    setSubKdsList([
-      ...subKdsList,
-      { ip: newSubKdsIP, category: assignedCategory },
-    ]);
-    setNewSubKdsIP(""); // 清空输入框
+    // 保存用户输入的原始IP地址，不进行转换
+    const inputIP = newSubKdsIP;
+
+    console.log(`添加子KDS，输入IP: ${inputIP}, 分配品类: ${assignedCategory}`);
+
+    try {
+      // 使用DistributionService添加子KDS，传递原始IP
+      const success = await DistributionService.addSubKDS(
+        inputIP,
+        assignedCategory
+      );
+
+      if (success) {
+        // 更新本地状态，使用原始输入的IP
+        setSubKdsList([
+          ...subKdsList,
+          { ip: inputIP, category: assignedCategory },
+        ]);
+        setNewSubKdsIP(""); // 清空输入框
+        Alert.alert("成功", `已添加子KDS: ${inputIP}`);
+      } else {
+        Alert.alert("错误", "添加子KDS失败");
+      }
+    } catch (error) {
+      console.error("添加子KDS错误:", error);
+      Alert.alert("错误", "添加子KDS时发生错误");
+    }
   };
 
   // 删除子KDS
-  const removeSubKds = (ip: string) => {
-    setSubKdsList(subKdsList.filter((kds) => kds.ip !== ip));
+  const removeSubKds = async (ip: string) => {
+    try {
+      // 使用DistributionService移除子KDS
+      const success = await DistributionService.removeSubKDS(ip);
+
+      if (success) {
+        // 更新本地状态
+        setSubKdsList(subKdsList.filter((kds) => kds.ip !== ip));
+      } else {
+        Alert.alert("错误", "移除子KDS失败");
+      }
+    } catch (error) {
+      console.error("移除子KDS错误:", error);
+      Alert.alert("错误", "移除子KDS时发生错误");
+    }
   };
 
   // 获取品类显示名称
@@ -192,6 +301,23 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  // 保存KDS角色设置
+  const saveKDSRole = async () => {
+    try {
+      await AsyncStorage.setItem("kds_role", kdsRole);
+
+      // 如果是子KDS，同时保存分类设置
+      if (kdsRole === KDSRole.SLAVE) {
+        await AsyncStorage.setItem("kds_category", kdsCategory);
+      }
+
+      Alert.alert(t("success"), t("settingsSavedRestart"));
+    } catch (error) {
+      console.error("保存KDS角色失败:", error);
+      Alert.alert(t("error"), t("saveSettingsFailed"));
+    }
   };
 
   if (loading) {
@@ -263,15 +389,51 @@ export default function SettingsScreen() {
         </View>
 
         {kdsRole === KDSRole.SLAVE && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-            <TextInput
-              style={styles.textInput}
-              value={masterIP}
-              onChangeText={setMasterIP}
-              placeholder="例如: 192.168.1.100"
-            />
-          </View>
+          <>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>{t("masterKDSIPAddress")}</Text>
+              <TextInput
+                style={styles.input}
+                value={masterIP}
+                onChangeText={setMasterIP}
+                placeholder="例如: 192.168.1.100"
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>子KDS显示分类</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={kdsCategory}
+                  style={styles.picker}
+                  onValueChange={(itemValue) =>
+                    setKdsCategory(itemValue as CategoryType)
+                  }
+                >
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.ALL)}
+                    value={CategoryType.ALL}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.DRINKS)}
+                    value={CategoryType.DRINKS}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.HOT_FOOD)}
+                    value={CategoryType.HOT_FOOD}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.COLD_FOOD)}
+                    value={CategoryType.COLD_FOOD}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.DESSERT)}
+                    value={CategoryType.DESSERT}
+                  />
+                </Picker>
+              </View>
+            </View>
+          </>
         )}
 
         {kdsRole === KDSRole.MASTER && (
@@ -310,7 +472,7 @@ export default function SettingsScreen() {
 
         <TouchableOpacity
           style={[styles.saveButton, { maxWidth: 200, alignSelf: "center" }]}
-          onPress={saveSettings}
+          onPress={saveKDSRole}
         >
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
@@ -368,6 +530,33 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
+
+      {Platform.OS === "android" && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>
+            {t("backgroundService") || "后台服务"}
+          </Text>
+          <Text style={styles.infoText}>
+            {t("backgroundServiceDescription") ||
+              "启用后台服务可以在应用处于后台时接收新订单"}
+          </Text>
+
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>
+              {t("backgroundOrderFetch") || "后台接收订单"}
+            </Text>
+            <Switch
+              value={backgroundServiceRunning}
+              onValueChange={toggleBackgroundService}
+              trackColor={{ false: "#767577", true: theme.colors.primaryColor }}
+              thumbColor={
+                backgroundServiceRunning ? theme.colors.primaryColor : "#f4f3f4"
+              }
+            />
+          </View>
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
         <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
@@ -384,8 +573,68 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
     padding: 16,
+    backgroundColor: "#fff",
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  settingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  settingLabel: {
+    fontSize: 16,
+    flex: 1,
+  },
+  input: {
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    fontSize: 16,
+    minWidth: 150,
+    flex: 1,
+    marginLeft: 8,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    overflow: "hidden",
+    flex: 1,
+    marginLeft: 8,
+    maxWidth: 150,
+  },
+  picker: {
+    width: "100%",
+    height: 40,
+  },
+  saveButton: {
+    backgroundColor: theme.colors.primaryColor,
+    padding: 12,
+    borderRadius: 4,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   title: {
     fontSize: 28,
@@ -403,12 +652,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
-    color: "#333",
   },
   subsectionTitle: {
     fontSize: 16,
@@ -487,19 +730,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
   },
-  saveButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 6,
-    alignItems: "center",
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   subKdsItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -527,18 +757,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  settingLabel: {
-    fontSize: 16,
-    color: "#333",
-  },
   resetButton: {
     backgroundColor: "#ff3b30",
     padding: 16,
@@ -550,13 +768,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 4,
-    overflow: "hidden",
-    width: 150,
   },
   languagePicker: {
     width: 150,

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FormattedOrder, OrderItem } from './types';
-import { OrderService } from './orderService';
+import { OrderService } from './orderService/OrderService';
+import { TCPSocketService } from './tcpSocketService';
 import { Alert } from 'react-native';
 
 // KDS角色枚举
@@ -12,7 +13,7 @@ export enum KDSRole {
 // 品类枚举
 export enum CategoryType {
   ALL = "all",
-  DRINKS = "drinks",
+  DRINKS = "Drinks",
   HOT_FOOD = "hot_food",
   COLD_FOOD = "cold_food",
   DESSERT = "dessert"
@@ -28,11 +29,42 @@ interface SubKDSInfo {
 export class DistributionService {
   private static role: KDSRole = KDSRole.MASTER;
   private static masterIP: string = "";
-  private static category: CategoryType = CategoryType.ALL;
   private static subKdsList: SubKDSInfo[] = [];
   private static tcpSockets: Map<string, any> = new Map(); // 保存与子KDS的连接
   
   private static initialized = false;
+  
+  // 添加已处理订单缓存
+  private static processedOrderIds: Set<string> = new Set();
+  private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
+  private static PROCESSED_ORDER_CACHE_SIZE = 100; // 缓存大小
+  
+  // 添加订单ID到处理缓存
+  private static addToProcessedCache(orderId: string) {
+    // 如果已经在缓存中，不需要再添加
+    if (this.processedOrderIds.has(orderId)) {
+      return;
+    }
+    
+    // 添加到缓存
+    this.processedOrderIds.add(orderId);
+    this.processedOrderIdsArray.push(orderId);
+    
+    // 如果缓存超出大小限制，移除最早的订单ID
+    if (this.processedOrderIdsArray.length > this.PROCESSED_ORDER_CACHE_SIZE) {
+      const oldestId = this.processedOrderIdsArray.shift();
+      if (oldestId) {
+        this.processedOrderIds.delete(oldestId);
+      }
+    }
+    
+    console.log(`[分发服务] 订单ID ${orderId} 已添加到处理缓存，当前缓存大小: ${this.processedOrderIds.size}`);
+  }
+  
+  // 检查订单是否已处理
+  private static isOrderProcessed(orderId: string): boolean {
+    return this.processedOrderIds.has(orderId);
+  }
   
   // 初始化分发服务
   public static async initialize(): Promise<void> {
@@ -76,10 +108,10 @@ export class DistributionService {
   private static async initializeMaster(): Promise<void> {
     try {
       // 1. 启动TCP服务器
-      await OrderService.bindTCPServer();
+      await TCPSocketService.startServer();
       
       // 2. 设置回调以接收来自原始订单源的订单
-      OrderService.setTCPCallback(async (data: any) => {
+      TCPSocketService.setOrderCallback(async (data: any) => {
         // 检查消息类型
         if (data.type === 'order_ack') {
           // 处理子KDS的订单确认
@@ -101,7 +133,40 @@ export class DistributionService {
         }
       });
       
-      // 4. 尝试连接所有子KDS
+      // 3. 设置子KDS注册回调
+      TCPSocketService.setRegistrationCallback(async (ip: string, category: CategoryType) => {
+        console.log(`收到子KDS注册请求: IP=${ip}, 品类=${category}`);
+        
+        // 检查子KDS是否已存在
+        const existingIndex = this.subKdsList.findIndex(kds => kds.ip === ip);
+        
+        if (existingIndex >= 0) {
+          console.log(`子KDS ${ip} 已存在，更新连接状态和品类`);
+          // 更新现有子KDS的状态和品类
+          this.subKdsList[existingIndex] = {
+            ...this.subKdsList[existingIndex],
+            category: category,
+            connected: true
+          };
+        } else {
+          console.log(`添加新的子KDS: ${ip}, 品类: ${category}`);
+          // 添加新的子KDS
+          this.subKdsList.push({
+            ip: ip,
+            category: category,
+            connected: true
+          });
+        }
+        
+        // 保存更新后的子KDS列表
+        await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
+        console.log(`已保存更新的子KDS列表，共${this.subKdsList.length}个子KDS`);
+      });
+      
+      // 4. 继续使用OrderService处理网络订单
+      await OrderService.bindTCPServer();
+      
+      // 5. 尝试连接所有子KDS
       for (const subKds of this.subKdsList) {
         this.connectToSubKDS(subKds.ip, subKds.category);
       }
@@ -115,43 +180,47 @@ export class DistributionService {
   // 初始化子KDS
   private static async initializeSlave(): Promise<void> {
     try {
-      if (!this.masterIP) {
-        console.error("主KDS IP未设置");
-        Alert.alert("配置错误", "请设置主KDS的IP地址");
+      console.log("初始化子KDS...");
+      
+      // 获取主KDS IP
+      const masterIP = await AsyncStorage.getItem("master_ip") || "";
+      if (!masterIP) {
+        console.error("未设置主KDS IP地址");
         return;
       }
       
-      // 1. 启动TCP服务器以接收来自主KDS的订单
-      await OrderService.bindTCPServer();
+      this.masterIP = masterIP;
+      console.log(`主KDS IP: ${this.masterIP}`);
       
-      // 2. 设置回调以接收来自主KDS的订单(子KDS只接收TCP数据)
-      OrderService.setTCPCallback((newOrder: FormattedOrder) => {
-        console.log("子KDS收到TCP订单:", newOrder.id);
-        
-        // 保存订单到本地
-        OrderService.addTCPOrder(newOrder);
-        
-        // 发送确认消息回主KDS
-        const ackMessage = {
-          type: 'order_ack',
-          orderId: newOrder.id,
-          status: 'received',
-          timestamp: new Date().toISOString()
-        };
-        
-        // 假设masterIP已经在初始化时保存
-        OrderService.sendTCPData(DistributionService.masterIP, ackMessage);
-      });
+      // 如果是本地测试环境，统一使用127.0.0.1
+      const actualMasterIP = (masterIP === '127.0.0.100' || masterIP.startsWith('192.168.')) ? '127.0.0.1' : masterIP;
+      console.log(`实际连接的主KDS IP: ${actualMasterIP}`);
       
-      // 3. 禁用网络订单接收(子KDS只处理从主KDS分发来的订单)
-      OrderService.stopNetworkPolling();
+      // 连接到主KDS
+      const connected = await TCPSocketService.connectToMaster(actualMasterIP);
       
-      // 4. 向主KDS注册
-      // this.registerWithMaster();
+      if (connected) {
+        console.log("成功连接到主KDS");
+        
+        // 设置回调，处理从主KDS接收的订单
+        TCPSocketService.setOrderCallback((order) => {
+          console.log(`收到来自主KDS的订单: ${order.id}`);
+          
+          // 添加到本地订单列表
+          OrderService.addTCPOrder(order);
+          
+          console.log(`订单 ${order.id} 已添加到本地列表，商品数量: ${order.products.length}`);
+          
+          // 打印订单中的商品
+          order.products.forEach((product: any, index: number) => {
+            console.log(`商品 ${index + 1}: ${product.name} (${product.category}) x${product.quantity}`);
+          });
+        });
+      } else {
+        console.error("无法连接到主KDS");
+      }
     } catch (error) {
-      console.error("子KDS初始化失败:", error);
-      Alert.alert("错误", "子KDS初始化失败");
-      throw error;
+      console.error("初始化子KDS失败:", error);
     }
   }
   
@@ -167,15 +236,32 @@ export class DistributionService {
         timestamp: new Date().toISOString()
       };
       
-      const connected = await OrderService.sendTCPData(ip, testMessage);
+      // 如果是本地测试环境，统一使用127.0.0.1进行连接，但保留原始IP用于显示
+      const actualIP = (ip === '127.0.0.100' || ip.startsWith('192.168.')) ? '127.0.0.1' : ip;
+      if (actualIP !== ip) {
+        console.log(`实际连接目标IP: ${actualIP} (原始IP: ${ip})`);
+      }
       
-      // 更新连接状态
-      this.subKdsList = this.subKdsList.map(kds => 
+      const connected = await TCPSocketService.sendData(actualIP, testMessage);
+      
+      // 更新连接状态，但保留原始IP
+      const updatedList = this.subKdsList.map(kds => 
         kds.ip === ip ? { ...kds, connected } : kds
       );
       
-      // 保存更新后的子KDS列表
-      await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
+      // 确保更新了子KDS列表
+      if (JSON.stringify(updatedList) !== JSON.stringify(this.subKdsList)) {
+        this.subKdsList = updatedList;
+        
+        // 保存更新后的子KDS列表
+        await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
+        console.log(`已保存更新的子KDS列表，共${this.subKdsList.length}个子KDS`);
+        
+        // 打印连接状态
+        for (const kds of this.subKdsList) {
+          console.log(`子KDS ${kds.ip} (${kds.category}) 连接状态: ${kds.connected ? '已连接' : '未连接'}`);
+        }
+      }
       
       console.log(`子KDS ${ip} 连接${connected ? '成功' : '失败'}`);
       
@@ -189,73 +275,112 @@ export class DistributionService {
     }
   }
   
-  // 向主KDS注册
-  // private static async registerWithMaster(): Promise<void> {
-  //   try {
-  //     console.log(`向主KDS注册: ${this.masterIP}`);
-      
-  //     // 构建注册消息
-  //     const registrationMessage = {
-  //       type: 'register',
-  //       ip: await OrderService.getDeviceIP(),
-  //       timestamp: new Date().toISOString()
-  //     };
-      
-  //     // 发送注册消息到主KDS
-  //     const success = await OrderService.sendTCPData(
-  //       this.masterIP, 
-  //       registrationMessage
-  //     );
-      
-  //     if (success) {
-  //       console.log("向主KDS注册成功");
-  //       // 保存设置，记录已注册状态
-  //       await AsyncStorage.setItem("registered_with_master", "true");
-  //     } else {
-  //       console.error("向主KDS注册失败");
-  //       Alert.alert("注册失败", "无法连接到主KDS，请检查网络或主KDS是否在线");
-  //     }
-  //   } catch (error) {
-  //     console.error("向主KDS注册失败:", error);
-  //     Alert.alert("注册错误", "注册过程中发生错误");
-  //   }
-  // }
   
   // 处理订单并分发给子KDS
   public static async processAndDistributeOrder(order: FormattedOrder): Promise<void> {
     try {
       console.log(`处理并分发订单: ${order.id}`);
       
-      // 1. 首先将订单添加到主KDS自己的订单列表（如果是TCP订单，避免重复添加）
-      if (order.source !== 'tcp') {
-        OrderService.addTCPOrder({...order, source: 'tcp'});
+      // 检查订单是否已处理
+      if (this.isOrderProcessed(order.id)) {
+        console.log(`订单 ${order.id} 已处理过，跳过分发`);
+        return;
       }
       
-      // 2. 按品类分类订单项
-      const categorizedItems = this.categorizeOrderItems(order.products);
+      // 分析订单商品中的分类
+      console.log(`开始分析订单中的商品分类...`);
+      let allOrders = await OrderService.getAllOrders();
+      console.log(`总共有 ${allOrders.length} 个订单`);
       
-      // 3. 分发到对应的子KDS
+      // 检查当前订单
+      let itemCategories = new Set<string>();
+      console.log(`订单 ${order.id} 有 ${order.products.length} 个商品`);
+      
+      // 增强商品分类识别，确保能正确识别饮料类
+      for (const product of order.products) {
+        console.log(`商品: ${product.name}, 原始分类: ${product.category || 'default'}`);
+        
+        // 处理分类，确保大小写匹配
+        let category = product.category;
+        
+        // 如果是"drinks"（小写），转换为"Drinks"（首字母大写）
+        if (category && category.toLowerCase() === 'drinks') {
+          category = 'Drinks';
+        }
+        
+        // 处理"Beverage"到"Drinks"的映射
+        if (category && category === 'Beverage') {
+          category = 'Drinks';
+          // 更新产品分类
+          product.category = 'Drinks';
+        }
+        
+        if (category) {
+          itemCategories.add(category);
+        } else {
+          // 根据商品名称判断分类
+          if (product.name.toLowerCase().includes('coffee') || 
+              product.name.toLowerCase().includes('tea') || 
+              product.name.toLowerCase().includes('juice') ||
+              product.name.toLowerCase().includes('dew') ||  // 增加Mountain Dew的识别
+              product.name.toLowerCase().includes('smoothie') || // 增加Smoothie的识别
+              product.name.toLowerCase().includes('crush') ||    // 增加Crush的识别
+              product.name.toLowerCase().includes('water')) {    // 增加Water的识别
+            itemCategories.add('Drinks');
+            product.category = 'Drinks'; // 更新产品分类
+          } else {
+            itemCategories.add('default');
+          }
+        }
+      }
+      
+      console.log(`找到的所有分类: ${JSON.stringify(Array.from(itemCategories))}`);
+      
+      // 检查是否有商品分类
+      if (itemCategories.size === 0) {
+        console.log(`订单 ${order.id} 没有可分发的商品分类，跳过分发`);
+        return;
+      }
+      
+      // 打印子KDS列表和连接状态
+      console.log(`当前子KDS列表: ${JSON.stringify(this.subKdsList.map(kds => ({ 
+        ip: kds.ip, 
+        category: kds.category, 
+        connected: kds.connected 
+      })))}`);
+      
+      // 3. 分发到所有连接的子KDS（发送完整订单）
       for (const subKds of this.subKdsList) {
-        if (!subKds.connected) continue;
+        console.log(`检查子KDS ${subKds.ip}, 品类=${subKds.category}, 连接状态=${subKds.connected}`);
         
-        const categoryItems = categorizedItems[subKds.category];
-        if (!categoryItems || categoryItems.length === 0) continue;
+        if (!subKds.connected) {
+          console.log(`子KDS ${subKds.ip} 未连接，跳过分发`);
+          continue;
+        }
         
-        // 创建子订单
+        // 发送完整订单，不再过滤商品
+        console.log(`准备向子KDS ${subKds.ip} 发送完整订单，商品数量: ${order.products.length}`);
+        
+        // 添加子KDS分类信息，以便子KDS可以根据自己的分类过滤显示
         const subOrder: FormattedOrder = {
           ...order,
-          products: categoryItems,
           id: order.id,
           source: 'tcp',
           orderTime: order.orderTime,
           pickupMethod: order.pickupMethod,
           pickupTime: order.pickupTime,
           order_num: order.order_num,
+          targetCategory: subKds.category // 添加目标分类信息
         };
         
+        console.log(`子订单已创建，准备发送到子KDS ${subKds.ip}，商品数量: ${subOrder.products.length}`);
+        
         // 发送子订单到子KDS
-        this.sendOrderToSubKDS(subKds.ip, subOrder);
+        await this.sendOrderToSubKDS(subKds.ip, subOrder);
       }
+      
+      // 添加订单ID到处理缓存
+      this.addToProcessedCache(order.id);
     } catch (error) {
       console.error("处理并分发订单失败:", error);
     }
@@ -272,25 +397,51 @@ export class DistributionService {
     };
     
     for (const item of items) {
-      // 这里根据实际情况判断每个商品属于哪个品类
+      // 首先检查商品是否已有分类
+      if (item.category) {
+        // 处理分类，确保大小写匹配
+        const normalizedCategory = item.category.toLowerCase();
+        
+        if (normalizedCategory === 'drinks') {
+          result[CategoryType.DRINKS].push(item);
+          continue;
+        }
+      }
       
-      if (item.name.toLowerCase().includes('coffee') || 
-          item.name.toLowerCase().includes('tea') || 
-          item.name.toLowerCase().includes('juice')) {
+      // 如果没有分类或分类不匹配，根据名称判断
+      const itemName = item.name.toLowerCase();
+      
+      // 增强饮料识别
+      if (itemName.includes('coffee') || 
+          itemName.includes('tea') || 
+          itemName.includes('juice') ||
+          itemName.includes('dew') ||    // Mountain Dew
+          itemName.includes('soda') ||
+          itemName.includes('water') ||
+          itemName.includes('drink') ||
+          itemName.includes('cola')) {
         result[CategoryType.DRINKS].push(item);
       }
-      else if (item.name.toLowerCase().includes('cake') || 
-               item.name.toLowerCase().includes('ice') || 
-               item.name.toLowerCase().includes('dessert')) {
+      else if (itemName.includes('cake') || 
+               itemName.includes('ice') || 
+               itemName.includes('dessert')) {
         result[CategoryType.DESSERT].push(item);
       }
-      else if (item.name.toLowerCase().includes('salad') || 
-               item.name.toLowerCase().includes('sandwich')) {
+      else if (itemName.includes('salad') || 
+               itemName.includes('sandwich')) {
         result[CategoryType.COLD_FOOD].push(item);
       }
       else {
         // 默认归为热食
         result[CategoryType.HOT_FOOD].push(item);
+      }
+    }
+    
+    // 打印分类结果
+    console.log("商品分类结果:");
+    for (const category in result) {
+      if (result[category as CategoryType].length > 0) {
+        console.log(`${category}: ${result[category as CategoryType].length}个商品`);
       }
     }
     
@@ -310,7 +461,7 @@ export class DistributionService {
       };
       
       // 发送订单到子KDS
-      const success = await OrderService.sendTCPData(ip, orderMessage);
+      const success = await TCPSocketService.sendData(ip, orderMessage);
       
       if (success) {
         console.log(`订单 ${order.id} 成功发送到子KDS ${ip}`);
@@ -325,18 +476,8 @@ export class DistributionService {
   // 关闭分发服务
   public static async shutdown(): Promise<void> {
     try {
-      // 关闭所有TCP连接
-      for (const [ip, socket] of this.tcpSockets.entries()) {
-        console.log(`关闭与 ${ip} 的连接`);
-        // 关闭连接的代码
-        // ...
-      }
-      
-      // 清空映射
-      this.tcpSockets.clear();
-      
-      // 关闭TCP服务器
-      // await OrderService.closeTCPServer();
+      // 关闭TCP服务
+      TCPSocketService.shutdown();
       
       this.initialized = false;
       console.log("分发服务已关闭");
@@ -345,41 +486,57 @@ export class DistributionService {
     }
   }
 
-  // 创建并管理TCP连接
-  // private static async createConnection(ip: string): Promise<boolean> {
-  //   try {
-  //     // 获取配置的端口
-  //     const savedPort = await AsyncStorage.getItem("kds_port") || "4321";
-  //     const port = parseInt(savedPort, 10);
-      
-  //     // 关闭已存在的连接
-  //     if (this.tcpSockets.has(ip)) {
-  //       try {
-  //         // 尝试关闭现有连接
-  //         const socket = this.tcpSockets.get(ip);
-  //         // 关闭连接的具体实现取决于你的socket库
-  //         this.tcpSockets.delete(ip);
-  //       } catch (e) {
-  //         console.warn(`关闭旧连接失败: ${ip}`, e);
-  //       }
-  //     }
-      
-  //     // 创建新连接 (使用sendTCPData测试连接)
-  //     const connected = await OrderService.sendTCPData(ip, {type: 'connection_test'});
-  //     if (connected) {
-  //       // 存储连接状态
-  //       this.tcpSockets.set(ip, { ip, port, connected: true, lastActivity: Date.now() });
-  //       return true;
-  //     }
-  //     return false;
-  //   } catch (error) {
-  //     console.error(`创建TCP连接失败 ${ip}:`, error);
-  //     return false;
-  //   }
-  // }
 
   // 检查是否为主KDS
   public static isMaster(): boolean {
     return this.role === KDSRole.MASTER;
+  }
+  
+  // 获取子KDS列表
+  public static getSubKdsList(): SubKDSInfo[] {
+    return [...this.subKdsList];
+  }
+  
+  // 手动添加子KDS (用于设置界面)
+  public static async addSubKDS(ip: string, category: CategoryType): Promise<boolean> {
+    try {
+      // 检查是否已存在
+      if (this.subKdsList.some(kds => kds.ip === ip)) {
+        console.warn(`子KDS ${ip} 已存在`);
+        return false;
+      }
+      
+      // 添加新的子KDS
+      this.subKdsList.push({
+        ip,
+        category,
+        connected: false
+      });
+      
+      // 保存到存储
+      await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
+      
+      // 如果已初始化，则尝试连接
+      if (this.initialized && this.role === KDSRole.MASTER) {
+        this.connectToSubKDS(ip, category);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`添加子KDS失败:`, error);
+      return false;
+    }
+  }
+  
+  // 移除子KDS
+  public static async removeSubKDS(ip: string): Promise<boolean> {
+    try {
+      this.subKdsList = this.subKdsList.filter(kds => kds.ip !== ip);
+      await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
+      return true;
+    } catch (error) {
+      console.error(`移除子KDS失败:`, error);
+      return false;
+    }
   }
 } 

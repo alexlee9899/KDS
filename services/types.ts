@@ -65,9 +65,10 @@ export interface OrderItem {
 }
 
 export interface FormattedOrder {
+  _id: string;
   id: string;
   orderId?: string;
-  orderTime?: string;
+  orderTime: string;
   pickupMethod: string;
   pickupTime: string;
   tableNumber?: string;
@@ -76,4 +77,5 @@ export interface FormattedOrder {
   source?: string;
   products: OrderItem[];
   total_prepare_time?: number;
+  targetCategory?: string;
 } 

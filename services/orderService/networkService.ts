@@ -76,14 +76,14 @@ export const fetchOrdersFromNetwork = async (
     const token = await getToken();
     if (!token) {
       console.error(`[请求${requestId}] 无法获取访问令牌，请先登录`);
-      return;
+      return [];
     }
     
     // 获取选中的店铺ID
     const selectedShopId = await AsyncStorage.getItem('selectedShopId');
     if (!selectedShopId) {
       console.error(`[请求${requestId}] 未选择店铺，请先选择店铺`);
-      return;
+      return [];
     }
     
     // 准备请求体
@@ -108,7 +108,8 @@ export const fetchOrdersFromNetwork = async (
     });
     
     if (!response.ok) {
-      return;
+      console.error(`[请求${requestId}] HTTP错误: ${response.status}`);
+      return [];
     }
     
     const result = await response.json();
@@ -127,7 +128,6 @@ export const fetchOrdersFromNetwork = async (
                 const prepareTime = await getProductPrepareTime(product._id);
                 product.prepare_time = prepareTime;
                 totalPrepareTime += prepareTime * (product.qty);
-                
               }
             } catch (err) {
               console.error(`获取产品 [${product?.name || product?._id || '未知产品'}] 准备时间失败:`, err);
@@ -142,11 +142,14 @@ export const fetchOrdersFromNetwork = async (
         }
       }
       
-      // 返回订单数据让调用者处理
-      return result.orders.filter(
+      // 过滤订单数据，只返回未支付或已派送的订单，排除临时订单
+      const filteredOrders = result.orders.filter(
         (order: any) => (order.status === 'unpaid' || order.status === 'dispatch') && 
                          order.pick_method !== 'TEMP'
       );
+      
+      console.log(`[请求${requestId}] 过滤后返回 ${filteredOrders.length} 个订单`);
+      return filteredOrders;
     }
     
     console.log(`[请求${requestId}] 订单处理完成，当前时间: ${new Date().toISOString()}`);
