@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
-  Switch,
   Platform,
 } from "react-native";
 import { theme } from "../../styles/theme";
@@ -19,11 +18,6 @@ import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
-import {
-  startBackgroundService,
-  stopBackgroundService,
-  isBackgroundServiceRunning,
-} from "@/services/backgroundService";
 
 // KDS角色类型
 enum KDSRole {
@@ -57,10 +51,6 @@ export default function SettingsScreen() {
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
-
-  // 在组件中添加后台服务状态和控制函数
-  const [backgroundServiceRunning, setBackgroundServiceRunning] =
-    useState<boolean>(false);
 
   // 加载保存的设置
   useEffect(() => {
@@ -106,51 +96,6 @@ export default function SettingsScreen() {
 
     loadSettings();
   }, []);
-
-  // 检查后台服务状态
-  useEffect(() => {
-    const checkBackgroundService = async () => {
-      if (Platform.OS === "android") {
-        const isRunning = await isBackgroundServiceRunning();
-        setBackgroundServiceRunning(isRunning);
-      }
-    };
-
-    checkBackgroundService();
-  }, []);
-
-  // 控制后台服务
-  const toggleBackgroundService = async () => {
-    if (backgroundServiceRunning) {
-      const stopped = await stopBackgroundService();
-      if (stopped) {
-        setBackgroundServiceRunning(false);
-        Alert.alert(
-          t("success") || "成功",
-          t("backgroundServiceStopped") || "后台服务已停止"
-        );
-      } else {
-        Alert.alert(
-          t("error") || "错误",
-          t("failedToStopService") || "停止服务失败"
-        );
-      }
-    } else {
-      const started = await startBackgroundService();
-      if (started) {
-        setBackgroundServiceRunning(true);
-        Alert.alert(
-          t("success") || "成功",
-          t("backgroundServiceStarted") || "后台服务已启动"
-        );
-      } else {
-        Alert.alert(
-          t("error") || "错误",
-          t("failedToStartService") || "启动服务失败"
-        );
-      }
-    }
-  };
 
   // 保存设置
   const saveSettings = async () => {
@@ -530,32 +475,6 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
-
-      {Platform.OS === "android" && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
-            {t("backgroundService") || "后台服务"}
-          </Text>
-          <Text style={styles.infoText}>
-            {t("backgroundServiceDescription") ||
-              "启用后台服务可以在应用处于后台时接收新订单"}
-          </Text>
-
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>
-              {t("backgroundOrderFetch") || "后台接收订单"}
-            </Text>
-            <Switch
-              value={backgroundServiceRunning}
-              onValueChange={toggleBackgroundService}
-              trackColor={{ false: "#767577", true: theme.colors.primaryColor }}
-              thumbColor={
-                backgroundServiceRunning ? theme.colors.primaryColor : "#f4f3f4"
-              }
-            />
-          </View>
-        </View>
-      )}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>

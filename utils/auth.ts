@@ -40,13 +40,24 @@ export const auth = {
   // 登录
   async login(email: string, password: string) {
     try {
+      // 创建超时控制器
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+      
+      
       const response = await fetch(`${API_URL}/admin/terminal_login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal
       });
+      
+      // 清除超时定时器
+      clearTimeout(timeoutId);
+      
+      console.log(`登录响应状态: ${response.status}`);
 
       const data: LoginResponse = await response.json();
       
@@ -59,9 +70,21 @@ export const auth = {
       } else {
         return { success: false, error: data.message };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("登录错误详情:", error);
-      return { success: false, error: "网络错误" };
+      
+      // 提供更详细的错误信息
+      let errorMessage = "网络错误";
+      
+      if (error.name === 'AbortError') {
+        errorMessage = "请求超时，请检查网络连接或服务器状态";
+      } else if (error.message && error.message.includes('Network request failed')) {
+        errorMessage = "网络请求失败，请检查您的网络连接或服务器是否可用";
+      } else if (error.message) {
+        errorMessage = `登录失败: ${error.message}`;
+      }
+      
+      return { success: false, error: errorMessage };
     }
   },
 
