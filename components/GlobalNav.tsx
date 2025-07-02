@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { View, TouchableOpacity, Text, StyleSheet, Image } from "react-native";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Image,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useOrders } from "../contexts/OrderContext";
 
 export default function GlobalNav() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { networkStatus } = useOrders();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 更新当前时间
@@ -27,13 +36,38 @@ export default function GlobalNav() {
   };
 
   const handleLogout = async () => {
-    try {
-      const success = await auth.logout();
-      if (success) {
-        router.replace("/login");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
+    // 显示确认对话框
+    Alert.alert(
+      t("logoutConfirmTitle") || "确认登出",
+      t("logoutConfirmMessage") || "您确定要登出系统吗？",
+      [
+        {
+          text: t("cancel") || "取消",
+          style: "cancel",
+        },
+        {
+          text: t("confirm") || "确认",
+          onPress: async () => {
+            try {
+              const success = await auth.logout();
+              if (success) {
+                router.replace("/login");
+              }
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 获取网络状态图标
+  const getNetworkStatusIcon = () => {
+    if (networkStatus === "connected") {
+      return require("../assets/icon/wifiConnected.png");
+    } else {
+      return require("../assets/icon/wifiDisconnected.png");
     }
   };
 
@@ -56,6 +90,13 @@ export default function GlobalNav() {
 
           <TouchableOpacity
             style={styles.navButton}
+            onPress={() => router.push("/(tabs)/pre-orders")}
+          >
+            <Text style={styles.buttonText}>{t("preOrders")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navButton}
             onPress={() => router.push("/(tabs)/history")}
           >
             <Text style={styles.buttonText}>{t("orderHistory")}</Text>
@@ -67,10 +108,22 @@ export default function GlobalNav() {
           >
             <Text style={styles.buttonText}>{t("stockManagement")}</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navButton}
+            onPress={() => router.push("/(tabs)/dashboard")}
+          >
+            <Text style={styles.buttonText}>{t("dashboard")}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 右侧按钮 */}
         <View style={styles.rightSection}>
+          {/* 网络状态图标 */}
+          <View style={styles.iconButton}>
+            <Image source={getNetworkStatusIcon()} style={styles.iconImage} />
+          </View>
+
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/settings")}

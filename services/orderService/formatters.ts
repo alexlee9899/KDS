@@ -39,13 +39,14 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
     // 确保有订单ID
-    const orderId = orderData.order_num || orderData.orderId || orderData.id || String(Date.now());
+    const orderId = orderData.order_num || orderData.orderId || orderData._id || String(Date.now());
     
     // 提取并格式化订单项
-    const items = Array.isArray(orderData.items) ? orderData.items : [];
+    const items = Array.isArray(orderData.products) ? orderData.products : [];
     
     const formattedOrder: FormattedOrder = {
       id: orderId,
+      _id: orderId,
       orderTime: orderData.time || new Date().toISOString(),
       pickupMethod: orderData.pickupMethod || orderData.pick_method || "未知",
       pickupTime: orderData.pickupTime || orderData.pick_time || new Date().toISOString(),
@@ -69,6 +70,8 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     // 返回一个基本订单对象
     return {
       id: String(Date.now()),
+      _id: String(Date.now()),
+      orderTime:String(Date.now()),
       pickupMethod: "格式化错误",
       pickupTime: new Date().toISOString(),
       order_num: String(Date.now()),
@@ -88,26 +91,32 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const formattedItems = order.products.map((product: any, index: number) => {
       // 处理category，取数组的第一个元素
       let productCategory = "default";
-      
+      console.log("product.category is ============ : ", product.category);
       // 检查产品分类信息
-      if (Array.isArray(product.category) && product.category.length > 0) {
+      if (product.category.length > 0) {
         productCategory = product.category[0];
       }
       
       console.log("产品:", product.name, "分类:", productCategory);
+      
+      // 处理选项
+      let options = [];
+      if (Array.isArray(product.option)) {
+        options = product.option.map((opt: any) => ({
+          name: opt.name || '选项',
+          value: String(opt.qty || 1),
+          price: opt.price_adjust || 0
+        }));
+      }
       
       return {
         id: product._id || `item-${index}-${Date.now()}`,
         name: product.name || '未知商品',
         quantity: product.qty || 1,
         price: product.price || 0,
-        options: Array.isArray(product.option) ? product.option.map((opt: any) => ({
-          name: opt.name || '选项',
-          value: String(opt.qty || 1),
-          price: opt.price_adjust || 0
-        })) : [],
+        options: options,
         category: productCategory, // 使用确定的分类
-        prepare_time: product.prepare_time || 0, // 添加准备时间
+        prepare_time: product.prepare_time || 0, // 保留准备时间字段，但不显示
       };
     });
 
@@ -121,6 +130,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     
     return {
       id: order.order_num.toString(),
+      _id: order._id || order.order_num.toString(),
       orderTime: order.time,
       pickupMethod: order.pick_method,
       pickupTime: sydneyPickupTime, // 使用转换后的悉尼时间
@@ -136,6 +146,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     // 返回基本订单对象而不是抛出错误
     return {
       id: (order.order_num || Date.now()).toString(),
+      _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
       pickupMethod: order.pick_method || '未知',
       pickupTime: order.pick_time || new Date().toISOString(),

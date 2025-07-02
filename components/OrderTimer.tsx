@@ -36,13 +36,13 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [order.pickupTime]);
+  }, [order.orderTime]);
 
   // 计算订单生成时间与当前时间的差值（秒）
   const calculateTimeDifference = () => {
     try {
       // 解析订单的pickupTime（已转换为悉尼时区的字符串）
-      const pickupDate = new Date(order.pickupTime);
+      const pickupDate = new Date(order.orderTime);
 
       // 获取当前时间
       const now = new Date();
@@ -71,17 +71,15 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
 
   // 根据时间获取状态文本和颜色
   const getStatusInfo = () => {
-    // 获取订单的总准备时间（以秒为单位）
-    const totalPrepareTimeSeconds = order.total_prepare_time || 0;
-    // 转换为分钟
-    const totalPrepareTimeMinutes = Math.floor(totalPrepareTimeSeconds / 60);
+    // 获取订单的总准备时间（min）
+    const totalPrepareTimeMinutes = order.total_prepare_time || 0;
 
     // 获取已经过去的时间（分钟）
     const elapsedMinutes = Math.floor(elapsedTime / 60);
 
     // 如果订单没有准备时间数据，则使用默认逻辑
     if (totalPrepareTimeMinutes === 0) {
-      if (elapsedMinutes < 5) {
+      if (elapsedMinutes < 1) {
         return { text: t("active"), color: colors.activeColor };
       } else if (elapsedMinutes < 8) {
         return { text: t("urgent"), color: colors.urgentColor };
@@ -150,7 +148,6 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
       setIsPrinting(false);
     }
   };
-
   return (
     <View style={styles.headerRight}>
       <Text style={styles.timer}>{formatTime(elapsedTime)}</Text>

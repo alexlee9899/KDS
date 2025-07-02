@@ -18,6 +18,9 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
 import { theme } from "../styles/theme";
 import { ProductDetailPopup } from "./ProductDetailPopup";
+import { TCPSocketService } from "../services/tcpSocketService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_API } from "../config/api";
 
 interface OrderCardProps {
   order: FormattedOrder;
@@ -58,7 +61,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   }>({});
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isSlaveKDS, setIsSlaveKDS] = useState(false);
 
   // 添加商品详情弹窗状态
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -70,11 +73,51 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   // 添加一个状态来强制重新渲染
   const [, forceUpdate] = useState({});
 
+  // 检查当前KDS是否为slave
+  useEffect(() => {
+    const checkKDSRole = async () => {
+      const role = await AsyncStorage.getItem("kds_role");
+      setIsSlaveKDS(role === "slave");
+    };
+
+    checkKDSRole();
+  }, []);
+
   // 监听颜色映射变化
   useEffect(() => {
     // 当颜色映射变化时，强制更新组件
     forceUpdate({});
   }, [categoryColorMap]);
+
+  // 监听来自slave KDS的商品完成状态更新
+  useEffect(() => {
+    // 只有主KDS才需要监听
+    if (!isSlaveKDS) {
+      const handleOrderItemsCompleted = (data: any) => {
+        if (
+          data.type === "order_items_completed" &&
+          data.orderId === order.id
+        ) {
+          console.log(`主KDS收到订单 ${order.id} 的商品完成状态更新`);
+          updateCompletedItemsFromSlave(data.completedItems);
+        }
+      };
+
+      // 设置回调函数
+      TCPSocketService.setOrderCallback(handleOrderItemsCompleted);
+    }
+  }, [order.id, isSlaveKDS]);
+
+  // 更新来自slave KDS的商品完成状态
+  const updateCompletedItemsFromSlave = (slaveCompletedItems: {
+    [key: string]: boolean;
+  }) => {
+    console.log(`收到来自slave KDS的商品完成状态更新:`, slaveCompletedItems);
+    setCompletedItems((prev) => ({
+      ...prev,
+      ...slaveCompletedItems,
+    }));
+  };
 
   // 获取订单来源的颜色
   const getSourceColor = (source: string | undefined) => {
@@ -123,7 +166,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
     // 设置选中的商品信息
     setSelectedProduct({
-      id: item.id || `p${Math.floor(Math.random() * 3) + 1}`, // 如果没有ID，随机使用mock数据的ID
+      id: item.id || order.id, // 使用产品ID
       name: item.name,
     });
     setShowProductDetail(true);
@@ -131,17 +174,78 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const handleDoneConfirm = () => {
     setShowDoneConfirm(false);
+
+    // 如果是slave KDS，发送完成的商品状态到master KDS
+    if (isSlaveKDS) {
+      console.log(`Slave KDS发送商品完成状态到master KDS:`, completedItems);
+      TCPSocketService.sendOrderItemsCompleted(order.id, completedItems).then(
+        (success) => {
+          if (success) {
+            console.log(`成功发送商品完成状态到master KDS`);
+          } else {
+            console.error(`发送商品完成状态到master KDS失败`);
+          }
+        }
+      );
+    }
+    // 如果是主KDS，还需要发送API请求更新订单状态
+    else {
+      // 发送API请求更新订单状态为"ready"
+      updateOrderStatusToReady(order.id, order.source || "");
+    }
+
     // 调用完成订单的回调
     if (onOrderComplete) {
       onOrderComplete(order);
     }
   };
 
-  const handleCancelConfirm = () => {
-    setShowCancelConfirm(false);
-    // 调用取消订单的回调
-    if (onOrderCancel) {
-      onOrderCancel(order);
+  // 新增：更新订单状态为ready的函数
+  const updateOrderStatusToReady = async (orderId: string, source: string) => {
+    try {
+      console.log(`更新订单 ${orderId} 状态为ready`);
+
+      // 获取token
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        console.error("无法获取访问令牌，请先登录");
+        return;
+      }
+
+      // 只有网络订单才需要更新状态
+      if (source.toLowerCase() === "network") {
+        // 构建请求体
+        const requestBody = {
+          token: token,
+          order_id: orderId,
+          status: "ready",
+        };
+
+        // 发送请求
+        const response = await fetch(`${BASE_API}/order/update_status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP错误! 状态: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result && result.success) {
+          console.log(`订单 ${orderId} 状态已更新为ready`);
+        } else {
+          console.error(`更新订单状态失败:`, result);
+        }
+      } else {
+        console.log(`订单 ${orderId} 不是网络订单，不需要更新状态`);
+      }
+    } catch (error) {
+      console.error(`更新订单状态失败:`, error);
     }
   };
 
@@ -175,11 +279,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         >
           <View style={styles.itemNameContainer}>
             <Text style={styles.itemName}>{item.name}</Text>
-            {item.prepare_time > 0 && (
-              <Text style={styles.itemPrepareTime}>
-                {t("prepTime")}: {item.prepare_time}min
-              </Text>
-            )}
+            {/* 移除产品准备时间显示，改为显示选项信息
+            {item.options && item.options.length > 0 && (
+              <View style={styles.optionsContainer}>
+                {item.options.map((option: OrderOption, optIndex: number) => (
+                  <Text key={optIndex} style={styles.optionText}>
+                    {option.name}: {option.value}
+                  </Text>
+                ))}
+              </View>
+            )} */}
           </View>
           {completedItems[`${order.id}-item-${index}`] ? (
             <Ionicons
@@ -272,17 +381,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             onCancel={() => setShowDoneConfirm(false)}
           />
 
-          <ConfirmModal
-            visible={showCancelConfirm}
-            title={t("cancel")}
-            message={`${t("confirmCancel")} #${order.order_num}?`}
-            confirmText={t("cancel")}
-            cancelText={t("cancel")}
-            onConfirm={handleCancelConfirm}
-            onCancel={() => setShowCancelConfirm(false)}
-            isDanger
-          />
-
           {/* 添加商品详情弹窗 */}
           {selectedProduct && (
             <ProductDetailPopup
@@ -325,7 +423,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <Text style={styles.prepareTimeValue}>
                   {order.total_prepare_time}
                 </Text>{" "}
-                {t("seconds")}
+                min
               </Text>
             )}
 
@@ -342,7 +440,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <OrderActions
               orderId={order.id}
               onDone={() => setShowDoneConfirm(true)}
-              onCancel={() => setShowCancelConfirm(true)}
+              onCancel={() => {
+                // 保留空函数，因为不需要取消订单的逻辑
+              }}
             />
           </View>
         )}
@@ -462,9 +562,8 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   optionsContainer: {
-    marginLeft: 15,
-    marginTop: -5,
-    marginBottom: 5,
+    marginTop: 4,
+    marginLeft: 8,
   },
   optionRow: {
     flexDirection: "row",
@@ -537,5 +636,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
     fontWeight: "bold",
+  },
+  optionText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
   },
 });

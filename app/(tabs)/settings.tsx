@@ -5,20 +5,19 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  Switch,
   TouchableOpacity,
   Alert,
   TextInput,
+  Platform,
 } from "react-native";
 import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PrinterTestCard } from "../../components/PrinterTestCard";
-import { SocketTest } from "@/components/SocketTest";
 import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { colors } from "../../styles/color";
+import { SupportedLanguage } from "../../constants/translations";
+import { DistributionService } from "@/services/distributionService";
 
 // KDS角色类型
 enum KDSRole {
@@ -26,10 +25,14 @@ enum KDSRole {
   SLAVE = "slave",
 }
 
+// 设置相关的常量
+const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
+const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
+
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
-  const [port, setPort] = useState<string>("4321"); // 默认端口
+  const [port, setPort] = useState<string>("4322"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
   const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.MASTER);
   const [masterIP, setMasterIP] = useState<string>("");
@@ -37,6 +40,17 @@ export default function SettingsScreen() {
   const [subKdsList, setSubKdsList] = useState<
     { ip: string; category: CategoryType }[]
   >([]);
+  const [assignedCategory, setAssignedCategory] = useState<CategoryType>(
+    CategoryType.DRINKS
+  );
+  const [kdsCategory, setKdsCategory] = useState<CategoryType>(
+    CategoryType.ALL
+  );
+
+  // 添加Compact模式下每行卡片数量状态
+  const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
+    DEFAULT_COMPACT_CARDS_PER_ROW
+  );
 
   // 加载保存的设置
   useEffect(() => {
@@ -59,6 +73,20 @@ export default function SettingsScreen() {
         const savedSubKds = await AsyncStorage.getItem("sub_kds_list");
         if (savedSubKds) setSubKdsList(JSON.parse(savedSubKds));
 
+        // 加载Compact模式每行卡片数量
+        const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          STORAGE_KEY_COMPACT_CARDS_PER_ROW
+        );
+        if (savedCompactCardsPerRow) {
+          setCompactCardsPerRow(savedCompactCardsPerRow);
+        }
+
+        // 加载子KDS分类设置
+        const savedCategory = await AsyncStorage.getItem("kds_category");
+        if (savedCategory) {
+          setKdsCategory(savedCategory as CategoryType);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("加载设置失败:", error);
@@ -77,14 +105,25 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem("master_ip", masterIP);
       await AsyncStorage.setItem("sub_kds_list", JSON.stringify(subKdsList));
 
-      Alert.alert("成功", "设置已保存，重启应用以应用更改");
+      // 保存Compact模式每行卡片数量
+      await AsyncStorage.setItem(
+        STORAGE_KEY_COMPACT_CARDS_PER_ROW,
+        compactCardsPerRow
+      );
+
+      // 如果是子KDS，同时保存分类设置
+      if (kdsRole === KDSRole.SLAVE) {
+        await AsyncStorage.setItem("kds_category", kdsCategory);
+      }
+
+      Alert.alert("成功", "设置已保存");
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
   };
 
   // 添加子KDS - 自动分配品类
-  const addSubKds = () => {
+  const addSubKds = async () => {
     if (!newSubKdsIP.trim()) {
       Alert.alert("错误", "请输入IP地址");
       return;
@@ -108,16 +147,51 @@ export default function SettingsScreen() {
     const categoryIndex = subKdsList.length % categories.length;
     const assignedCategory = categories[categoryIndex];
 
-    setSubKdsList([
-      ...subKdsList,
-      { ip: newSubKdsIP, category: assignedCategory },
-    ]);
-    setNewSubKdsIP(""); // 清空输入框
+    // 保存用户输入的原始IP地址，不进行转换
+    const inputIP = newSubKdsIP;
+
+    console.log(`添加子KDS，输入IP: ${inputIP}, 分配品类: ${assignedCategory}`);
+
+    try {
+      // 使用DistributionService添加子KDS，传递原始IP
+      const success = await DistributionService.addSubKDS(
+        inputIP,
+        assignedCategory
+      );
+
+      if (success) {
+        // 更新本地状态，使用原始输入的IP
+        setSubKdsList([
+          ...subKdsList,
+          { ip: inputIP, category: assignedCategory },
+        ]);
+        setNewSubKdsIP(""); // 清空输入框
+        Alert.alert("成功", `已添加子KDS: ${inputIP}`);
+      } else {
+        Alert.alert("错误", "添加子KDS失败");
+      }
+    } catch (error) {
+      console.error("添加子KDS错误:", error);
+      Alert.alert("错误", "添加子KDS时发生错误");
+    }
   };
 
   // 删除子KDS
-  const removeSubKds = (ip: string) => {
-    setSubKdsList(subKdsList.filter((kds) => kds.ip !== ip));
+  const removeSubKds = async (ip: string) => {
+    try {
+      // 使用DistributionService移除子KDS
+      const success = await DistributionService.removeSubKDS(ip);
+
+      if (success) {
+        // 更新本地状态
+        setSubKdsList(subKdsList.filter((kds) => kds.ip !== ip));
+      } else {
+        Alert.alert("错误", "移除子KDS失败");
+      }
+    } catch (error) {
+      console.error("移除子KDS错误:", error);
+      Alert.alert("错误", "移除子KDS时发生错误");
+    }
   };
 
   // 获取品类显示名称
@@ -138,10 +212,14 @@ export default function SettingsScreen() {
     }
   };
 
-  const toggleLanguage = async () => {
-    // 切换语言
-    const newLanguage = language === "en" ? "zh" : "en";
+  // 处理语言切换
+  const handleLanguageChange = async (newLanguage: SupportedLanguage) => {
     await changeLanguage(newLanguage);
+  };
+
+  // 处理Compact模式每行卡片数量变更
+  const handleCompactCardsPerRowChange = (value: string) => {
+    setCompactCardsPerRow(value);
   };
 
   // 重置设置
@@ -158,10 +236,33 @@ export default function SettingsScreen() {
           await changeLanguage("en");
           // 重置其他设置
           await AsyncStorage.removeItem("viewMode");
+          // 重置Compact模式每行卡片数量
+          await AsyncStorage.setItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW,
+            DEFAULT_COMPACT_CARDS_PER_ROW
+          );
+          setCompactCardsPerRow(DEFAULT_COMPACT_CARDS_PER_ROW);
           // 可以添加其他需要重置的设置
         },
       },
     ]);
+  };
+
+  // 保存KDS角色设置
+  const saveKDSRole = async () => {
+    try {
+      await AsyncStorage.setItem("kds_role", kdsRole);
+
+      // 如果是子KDS，同时保存分类设置
+      if (kdsRole === KDSRole.SLAVE) {
+        await AsyncStorage.setItem("kds_category", kdsCategory);
+      }
+
+      Alert.alert(t("success"), t("settingsSavedRestart"));
+    } catch (error) {
+      console.error("保存KDS角色失败:", error);
+      Alert.alert(t("error"), t("saveSettingsFailed"));
+    }
   };
 
   if (loading) {
@@ -233,15 +334,51 @@ export default function SettingsScreen() {
         </View>
 
         {kdsRole === KDSRole.SLAVE && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-            <TextInput
-              style={styles.textInput}
-              value={masterIP}
-              onChangeText={setMasterIP}
-              placeholder="例如: 192.168.1.100"
-            />
-          </View>
+          <>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>{t("masterKDSIPAddress")}</Text>
+              <TextInput
+                style={styles.input}
+                value={masterIP}
+                onChangeText={setMasterIP}
+                placeholder="例如: 192.168.1.100"
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>子KDS显示分类</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={kdsCategory}
+                  style={styles.picker}
+                  onValueChange={(itemValue) =>
+                    setKdsCategory(itemValue as CategoryType)
+                  }
+                >
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.ALL)}
+                    value={CategoryType.ALL}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.DRINKS)}
+                    value={CategoryType.DRINKS}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.HOT_FOOD)}
+                    value={CategoryType.HOT_FOOD}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.COLD_FOOD)}
+                    value={CategoryType.COLD_FOOD}
+                  />
+                  <Picker.Item
+                    label={getCategoryDisplayName(CategoryType.DESSERT)}
+                    value={CategoryType.DESSERT}
+                  />
+                </Picker>
+              </View>
+            </View>
+          </>
         )}
 
         {kdsRole === KDSRole.MASTER && (
@@ -278,31 +415,71 @@ export default function SettingsScreen() {
           </>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={saveSettings}>
+        <TouchableOpacity
+          style={[styles.saveButton, { maxWidth: 200, alignSelf: "center" }]}
+          onPress={saveKDSRole}
+        >
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* 显示设置卡片 */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
-        <Text style={styles.infoText}>{t("copyright")}</Text>
+        <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
+
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>{t("cardsPerRow")}:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={compactCardsPerRow}
+              style={styles.languagePicker}
+              onValueChange={handleCompactCardsPerRowChange}
+              dropdownIconColor="#666"
+            >
+              <Picker.Item label="3" value="3" />
+              <Picker.Item label="4" value="4" />
+              <Picker.Item label="5" value="5" />
+              <Picker.Item label="6" value="6" />
+            </Picker>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            { marginTop: 10, maxWidth: 200, alignSelf: "center" },
+          ]}
+          onPress={saveSettings}
+        >
+          <Text style={styles.saveButtonText}>{t("applyChanges")}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t("language")}</Text>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>
-            {language === "en" ? t("english") : t("chinese")}
-          </Text>
-          <Switch
-            value={language === "zh"}
-            onValueChange={toggleLanguage}
-            trackColor={{ false: "#767577", true: colors.activeColor }}
-            thumbColor="#f4f3f4"
-          />
+          <Text style={styles.settingLabel}>{t("selectLanguage")}:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={language}
+              style={styles.languagePicker}
+              onValueChange={(itemValue: SupportedLanguage) =>
+                handleLanguageChange(itemValue)
+              }
+              dropdownIconColor="#666"
+            >
+              <Picker.Item label={t("english")} value="en" />
+              <Picker.Item label={t("chinese")} value="zh" />
+            </Picker>
+          </View>
         </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+        <Text style={styles.infoText}>{t("copyright")}</Text>
       </View>
 
       {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
@@ -315,8 +492,68 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
     padding: 16,
+    backgroundColor: "#fff",
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  settingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  settingLabel: {
+    fontSize: 16,
+    flex: 1,
+  },
+  input: {
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    fontSize: 16,
+    minWidth: 150,
+    flex: 1,
+    marginLeft: 8,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    overflow: "hidden",
+    flex: 1,
+    marginLeft: 8,
+    maxWidth: 150,
+  },
+  picker: {
+    width: "100%",
+    height: 40,
+  },
+  saveButton: {
+    backgroundColor: theme.colors.primaryColor,
+    padding: 12,
+    borderRadius: 4,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   title: {
     fontSize: 28,
@@ -334,12 +571,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
-    color: "#333",
   },
   subsectionTitle: {
     fontSize: 16,
@@ -418,18 +649,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
   },
-  saveButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 6,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   subKdsItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -457,18 +676,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  settingLabel: {
-    fontSize: 16,
-    color: "#333",
-  },
   resetButton: {
     backgroundColor: "#ff3b30",
     padding: 16,
@@ -480,5 +687,10 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  languagePicker: {
+    width: 150,
+    height: 55,
+    color: "#333",
   },
 });

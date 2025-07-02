@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { StockService, StockItem } from "../services/stockService";
 import { colors } from "@/styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -20,7 +21,6 @@ import { categoryColors } from "../styles/color";
 import { ProductDetailPopup } from "../components/ProductDetailPopup";
 
 // 仓库ID常量
-const WAREHOUSE_ID = "6672310309b356dd04293cb9";
 
 // 特殊分类常量
 const SOLD_OUT_CATEGORY = "Sold Out";
@@ -64,14 +64,62 @@ const StockManagementScreen = () => {
     name: string;
   } | null>(null);
 
+  // 修改仓库相关状态类型
+  const [warehouses, setWarehouses] = useState<{ [key: string]: string }>({});
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
+  const [selectedWarehouseName, setSelectedWarehouseName] =
+    useState<string>("");
+
+  // 加载仓库列表
+  useEffect(() => {
+    const loadWarehouses = async () => {
+      try {
+        console.log("开始加载仓库列表...");
+        const warehouseIds = await StockService.getAllWarehouseId();
+        console.log("获取到的仓库数据:", warehouseIds);
+
+        if (warehouseIds) {
+          console.log("设置仓库数据到状态...");
+          setWarehouses(warehouseIds);
+
+          // 如果有仓库，默认选择第一个
+          const firstWarehouseName = Object.keys(warehouseIds)[0];
+          console.log("第一个仓库名称:", firstWarehouseName);
+
+          if (firstWarehouseName) {
+            console.log("设置默认选中的仓库...");
+            setSelectedWarehouseName(firstWarehouseName);
+            setSelectedWarehouseId(warehouseIds[firstWarehouseName]);
+          } else {
+            console.log("没有找到可用的仓库");
+          }
+        } else {
+          console.log("没有获取到仓库数据");
+        }
+      } catch (error) {
+        console.error("加载仓库列表失败，详细错误:", error);
+        if (error instanceof Error) {
+          console.error("错误信息:", error.message);
+          console.error("错误堆栈:", error.stack);
+        }
+        setError(t("loadWarehousesFailed"));
+      }
+    };
+    loadWarehouses();
+  }, []);
+
   // 加载库存数据
   const loadStockData = async () => {
+    if (!selectedWarehouseId) return;
+
     try {
       setLoading(true);
       setError(null);
       setSelectedProducts(new Set());
-      // 获取仓库库存数据
-      const stockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
+
+      const stockData = await StockService.getWarehouseStock(
+        selectedWarehouseId
+      );
       console.log("stockData", stockData);
 
       // 提取分类列表并添加特殊分类
@@ -89,9 +137,6 @@ const StockManagementScreen = () => {
         allProductsList.push(...categoryItems);
       });
       setAllProducts(allProductsList);
-
-      // 清空已选商品
-      //   setSelectedProducts(new Set());
     } catch (err) {
       setError("加载库存数据失败");
       console.error("加载库存数据错误:", err);
@@ -123,7 +168,7 @@ const StockManagementScreen = () => {
       } else {
         // 获取常规分类的产品
         const categoryProducts = await StockService.getCategoryStock(
-          WAREHOUSE_ID,
+          selectedWarehouseId,
           category
         );
 
@@ -178,7 +223,11 @@ const StockManagementScreen = () => {
       console.log("准备将以下商品标记为售罄:", selectedProductIds);
       for (const productId of selectedProductIds) {
         console.log(`更新商品 ${productId} 库存为0...`);
-        await StockService.updateProductStock(WAREHOUSE_ID, productId, 0);
+        await StockService.updateProductStock(
+          selectedWarehouseId,
+          productId,
+          0
+        );
       }
 
       console.log("售罄操作完成，准备重新加载数据...");
@@ -190,7 +239,9 @@ const StockManagementScreen = () => {
       console.log("重新加载库存数据...");
       try {
         // 获取仓库库存数据
-        const stockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
+        const stockData = await StockService.getWarehouseStock(
+          selectedWarehouseId
+        );
         console.log("获取到最新库存数据:", stockData);
 
         // 提取分类列表并添加特殊分类
@@ -218,7 +269,7 @@ const StockManagementScreen = () => {
           // 获取常规分类的产品
           try {
             const categoryProducts = await StockService.getCategoryStock(
-              WAREHOUSE_ID,
+              selectedWarehouseId,
               currentCategory
             );
 
@@ -266,11 +317,17 @@ const StockManagementScreen = () => {
 
       // 更新操作
       for (const productId of selectedProductIds) {
-        await StockService.updateProductStock(WAREHOUSE_ID, productId, qty);
+        await StockService.updateProductStock(
+          selectedWarehouseId,
+          productId,
+          qty
+        );
       }
 
       // 获取仓库库存数据
-      const freshStockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
+      const freshStockData = await StockService.getWarehouseStock(
+        selectedWarehouseId
+      );
 
       // 收集所有商品用于特殊分类筛选
       const freshProductsList: StockItem[] = [];
@@ -298,7 +355,7 @@ const StockManagementScreen = () => {
         } else {
           // 刷新常规分类
           const categoryProducts = await StockService.getCategoryStock(
-            WAREHOUSE_ID,
+            selectedWarehouseId,
             currentCategory
           );
           setProducts(categoryProducts);
@@ -325,14 +382,16 @@ const StockManagementScreen = () => {
       // 更新操作
       for (const productId of selectedProductIds) {
         await StockService.updateProductStock(
-          WAREHOUSE_ID,
+          selectedWarehouseId,
           productId,
           parseInt(lowStockThreshold)
         );
       }
 
       // 获取仓库库存数据
-      const freshStockData = await StockService.getWarehouseStock(WAREHOUSE_ID);
+      const freshStockData = await StockService.getWarehouseStock(
+        selectedWarehouseId
+      );
 
       // 收集所有商品用于特殊分类筛选
       const freshProductsList: StockItem[] = [];
@@ -360,7 +419,7 @@ const StockManagementScreen = () => {
         } else {
           // 刷新常规分类
           const categoryProducts = await StockService.getCategoryStock(
-            WAREHOUSE_ID,
+            selectedWarehouseId,
             currentCategory
           );
           setProducts(categoryProducts);
@@ -656,8 +715,10 @@ const StockManagementScreen = () => {
 
   // 首次加载数据
   useEffect(() => {
-    loadStockData();
-  }, []);
+    if (selectedWarehouseId) {
+      loadStockData();
+    }
+  }, [selectedWarehouseId]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -751,7 +812,25 @@ const StockManagementScreen = () => {
       )}
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t("stockManagement")}</Text>
+        <View style={styles.warehouseSelector}>
+          <Text style={styles.warehouseLabel}>{t("selectWarehouse")}:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedWarehouseName}
+              onValueChange={(itemValue: string) => {
+                setSelectedWarehouseName(itemValue);
+                setSelectedWarehouseId(warehouses[itemValue]);
+                // 重新加载数据
+                loadStockData();
+              }}
+            >
+              {Object.keys(warehouses).map((name) => (
+                <Picker.Item key={name} label={name} value={name} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
         <View style={styles.thresholdContainer}>
           <Text style={styles.thresholdLabel}>
             {t("lowStock")} {t("threshold")}:
@@ -1234,6 +1313,28 @@ const styles = StyleSheet.create({
   },
   prepTimeButton: {
     backgroundColor: colors.secondary || "#4CAF50",
+  },
+  warehouseSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    width: "20%",
+  },
+  warehouseLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginRight: 10,
+    color: "#333",
+  },
+  pickerContainer: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    backgroundColor: "#fff",
+    height: 60,
+    width: "70%",
   },
 });
 

@@ -8,7 +8,7 @@ import { BASE_API } from '../../config/api';
 export const API_BASE_URL = BASE_API;
 
 // 轮询间隔 (毫秒)
-export const POLLING_INTERVAL = 5000;
+export const POLLING_INTERVAL = 15000;
 
 // 存储键名
 export const NETWORK_ORDERS_KEY = '@network_orders';

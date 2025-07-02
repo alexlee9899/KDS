@@ -28,7 +28,7 @@ export default function LoginScreen() {
     try {
       const result = await auth.login(email, password);
       if (result.success) {
-        router.replace("/(tabs)/home");
+        router.replace("/shop-select" as any);
       } else {
         Alert.alert("Fail to login", result.error);
       }
@@ -43,11 +43,11 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image
-          source={require("../assets/images/login.jpg")}
+          source={require("../assets/images/appLogo.png")}
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.title}>Welcome to Order HUB</Text>
+        <Text style={styles.title}>Welcome to Kitchen HUB</Text>
       </View>
       <View style={styles.inputContainer}>
         <TextInput

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_API } from '../config/api';
 
 const API_BASE_URL = BASE_API;
-const warehouseId = '6672310309b356dd04293cb9';
+
 // 定义库存项接口
 export interface StockItem {
   name: string;
@@ -18,6 +18,63 @@ export interface StockResponse {
 }
 
 export class StockService {
+  static async getAllWarehouseId(): Promise<{[key: string]: string}|null> {
+    const token = await this.getToken();
+    const response = await fetch(`${API_BASE_URL}/shop/list_business`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: token
+      })
+    });
+    const data = await response.json();
+    
+    // 添加检查确保data.business存在且是数组
+    if (!data || !data.business || !Array.isArray(data.business)) {
+      console.error("获取仓库列表失败: data.business不是数组或不存在", data);
+      return {};
+    }
+    
+    const businessIds: string[] = [];
+    for(const business of data.business){
+      businessIds.push(business.business_id);
+    };
+    
+    // 检查businessIds是否为空
+    if (businessIds.length === 0) {
+      console.log("没有找到任何业务ID");
+      return {};
+    }
+    
+    const warehouseIdResponses = await Promise.all(
+      businessIds.map(businessId => 
+        fetch(`${API_BASE_URL}/search/warehouse_search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            "query":{
+            "business_id": businessId},
+            "detail":true
+          })
+        }).then(res => res.json())
+      )
+    );
+
+    
+    // 合并所有仓库ID
+    const warehouseIds = Object.fromEntries(
+      warehouseIdResponses
+      .flatMap(resp => resp && resp.warehouses ? resp.warehouses : [])        
+      .map(wh => wh ? [wh.name, wh._id] : [])
+      .filter(item => item.length === 2) // 过滤掉空数组
+    );
+    console.log("最终生成的仓库映射:", warehouseIds);
+    return warehouseIds;
+  }
   // 获取仓库库存
   static async getWarehouseStock(warehouseId: string): Promise<StockResponse> {
     const token = await this.getToken();
@@ -119,11 +176,20 @@ export class StockService {
   // 获取Token辅助方法
   private static async getToken(): Promise<string | null> {
     try {
+      console.log("开始获取token...");
       const token = await AsyncStorage.getItem("token");
-      console.log("token", token);
+      if (!token) {
+        console.error("token不存在或为空");
+        return null;
+      }
+      console.log("成功获取token:", token.substring(0, 10) + "...");
       return token;
     } catch (error) {
       console.error("获取token错误:", error);
+      if (error instanceof Error) {
+        console.error("错误信息:", error.message);
+        console.error("错误堆栈:", error.stack);
+      }
       return null;
     }
   }

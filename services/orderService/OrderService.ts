@@ -13,6 +13,11 @@ import * as TCPService from './tcpService';
 import * as TimeUtils from './timeUtils';
 import * as Formatters from './formatters';
 import { POLLING_INTERVAL } from './constants';
+import { DistributionService } from '../distributionService';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+
+// 添加订单ID缓存，用于防止重复处理
+const PROCESSED_ORDER_CACHE_SIZE = 100; // 缓存最近处理的100个订单ID
 
 /**
  * OrderService 类
@@ -22,7 +27,11 @@ export class OrderService {
   // 内部状态存储
   private static networkOrders: FormattedOrder[] = [];
   private static tcpOrders: FormattedOrder[] = [];
-  private static networkPollingInterval: NodeJS.Timeout | null = null;
+  private static networkPollingInterval: ReturnType<typeof setInterval> | null = null;
+  
+  // 添加订单ID缓存，用于防止重复处理
+  private static processedOrderIds: Set<string> = new Set();
+  private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
   
   // 回调函数存储
   private static networkOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
@@ -43,16 +52,65 @@ export class OrderService {
   }
 
   /**
+   * 添加订单ID到处理缓存
+   */
+  private static addToProcessedCache(orderId: string) {
+    // 如果已经在缓存中，不需要再添加
+    if (this.processedOrderIds.has(orderId)) {
+      return;
+    }
+    
+    // 添加到缓存
+    this.processedOrderIds.add(orderId);
+    this.processedOrderIdsArray.push(orderId);
+    
+    // 如果缓存超出大小限制，移除最早的订单ID
+    if (this.processedOrderIdsArray.length > PROCESSED_ORDER_CACHE_SIZE) {
+      const oldestId = this.processedOrderIdsArray.shift();
+      if (oldestId) {
+        this.processedOrderIds.delete(oldestId);
+      }
+    }
+    
+    console.log(`订单ID ${orderId} 已添加到处理缓存，当前缓存大小: ${this.processedOrderIds.size}`);
+  }
+
+  /**
+   * 检查订单是否已处理
+   */
+  private static isOrderProcessed(orderId: string): boolean {
+    return this.processedOrderIds.has(orderId);
+  }
+
+  /**
    * 添加新网络订单
    */
   public static async addNetworkOrder(order: FormattedOrder): Promise<void> {
     try {
+      // 确保订单有ID
+      if (!order.id) {
+        console.error('网络订单缺少ID，无法处理');
+        return;
+      }
+      
+      // 确保订单来源标记为network
+      order.source = 'network';
+      
+      // 检查订单是否已处理过
+      if (this.isOrderProcessed(order.id)) {
+        console.log(`网络订单 ${order.id} 已处理过，跳过`);
+        return;
+      }
+      
       // 检查订单是否已存在
       const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === order.id);
       if (existingOrderIndex !== -1) {
         console.log(`网络订单已存在,ID: ${order.id}`);
         return;
       }
+
+      // 添加到处理缓存
+      this.addToProcessedCache(order.id);
 
       // 添加新订单
       this.networkOrders = [order, ...this.networkOrders];
@@ -70,6 +128,12 @@ export class OrderService {
       if (this.combinedOrderUpdateCallback) {
         this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
       }
+      
+      // 如果是主KDS，分发订单到子KDS
+      if (DistributionService.isMaster()) {
+        await DistributionService.processAndDistributeOrder({...order});
+        console.log(`网络订单 ${order.id} 已传递给分发服务`);
+      }
     } catch (error) {
       console.error('添加网络订单失败:', error);
     }
@@ -80,12 +144,30 @@ export class OrderService {
    */
   public static async addTCPOrder(order: FormattedOrder): Promise<void> {
     try {
+      // 确保订单有ID
+      if (!order.id) {
+        console.error('TCP订单缺少ID，无法处理');
+        return;
+      }
+      
+      // 确保订单来源标记为tcp
+      order.source = 'tcp';
+      
+      // 检查订单是否已处理过
+      if (this.isOrderProcessed(order._id)) {
+        console.log(`TCP订单 ${order.id} 已处理过，跳过`);
+        return;
+      }
+      
       // 检查订单是否已存在
       const existingOrderIndex = this.tcpOrders.findIndex((o) => o.id === order.id);
       if (existingOrderIndex !== -1) {
         console.log(`TCP订单已存在,ID: ${order.id}`);
         return;
       }
+
+      // 添加到处理缓存
+      this.addToProcessedCache(order.id);
 
       // 添加新订单
       this.tcpOrders = [order, ...this.tcpOrders];
@@ -143,32 +225,77 @@ export class OrderService {
   }
 
   /**
-   * 初始化系统 - 同时启动网络轮询和TCP服务器
+   * 初始化订单服务
    */
   static async initialize() {
     try {
-      console.log('===== 初始化订单系统开始 =====');
+      console.log('初始化OrderService...');
       
-      // 从AsyncStorage加载已有订单
+      // 加载已保存的订单
       this.networkOrders = await StorageService.loadNetworkOrders();
       this.tcpOrders = await StorageService.loadTCPOrders();
       
       console.log(`已加载 ${this.networkOrders.length} 个网络订单和 ${this.tcpOrders.length} 个TCP订单`);
       
-      // 同时启动网络轮询和TCP服务器，不再根据网络状态切换
-      console.log('即将启动网络订单轮询...');
-      this.startNetworkPolling();
-      
-      console.log('即将初始化TCP服务器...');
-      TCPService.bindTCPServer().catch(err => {
-        console.error('TCP服务器初始化失败，但继续使用网络模式:', err);
+      // 初始化已处理订单缓存
+      // 将所有已加载的订单ID添加到处理缓存中，防止重复处理
+      this.networkOrders.forEach(order => {
+        if (order.id) {
+          this.addToProcessedCache(order.id);
+        }
       });
       
-      console.log('===== 初始化订单系统完成 =====');
+      this.tcpOrders.forEach(order => {
+        if (order.id) {
+          this.addToProcessedCache(order.id);
+        }
+      });
+      
+      console.log(`已初始化处理缓存，当前缓存大小: ${this.processedOrderIds.size}`);
+      
+      // 绑定TCP服务器
+      const tcpBound = await this.bindTCPServer();
+      if (tcpBound) {
+        console.log('TCP服务器绑定成功');
+      } else {
+        console.error('TCP服务器绑定失败');
+      }
+      
+      // 启动网络轮询
+      this.startNetworkPolling();
+      
+      // 监听来自原生模块的事件（Android后台服务）
+      if (Platform.OS === 'android') {
+        this.listenToNativeEvents();
+      }
+      
+      console.log('OrderService初始化完成');
       return true;
     } catch (error) {
-      console.error('===== 初始化失败 =====', error);
+      console.error('初始化OrderService失败:', error);
       return false;
+    }
+  }
+
+  /**
+   * 监听来自原生模块的事件
+   */
+  private static listenToNativeEvents() {
+    try {
+      console.log('设置原生事件监听器...');
+      
+      // 创建事件发射器
+      const eventEmitter = new NativeEventEmitter();
+      
+      // 监听checkNewOrders事件
+      eventEmitter.addListener('checkNewOrders', () => {
+        console.log('收到来自原生层的检查新订单事件');
+        this.fetchOrdersFromNetworkAndProcess();
+      });
+      
+      console.log('原生事件监听器设置完成');
+    } catch (error) {
+      console.error('设置原生事件监听器失败:', error);
     }
   }
 
@@ -180,10 +307,38 @@ export class OrderService {
   }
 
   /**
-   * 绑定TCP服务器（代理到TCPService模块）
+   * 绑定TCP服务器
    */
   static async bindTCPServer(): Promise<boolean> {
-    return TCPService.bindTCPServer();
+    try {
+      console.log('绑定TCP服务器...');
+      
+      // 绑定TCP服务器
+      const bound = await TCPService.bindTCPServer();
+      
+      // 设置TCP回调函数
+      this.setTCPCallback((data: any) => {
+        console.log('收到TCP数据:', data);
+        
+        // 检查是否为订单数据（没有type字段的消息视为订单数据）
+        if (data && data.id && !data.type) {
+          this.addTCPOrder(data as FormattedOrder);
+        } 
+        // 如果是order_items_completed消息，不需要在这里处理，由OrderCard组件处理
+        else if (data && data.type === 'order_items_completed') {
+          console.log('收到商品完成状态消息，将由OrderCard组件处理');
+        }
+        // 其他类型的消息
+        else {
+          console.log('收到其他类型数据:', data);
+        }
+      });
+      
+      return bound;
+    } catch (error) {
+      console.error('绑定TCP服务器失败:', error);
+      return false;
+    }
   }
 
   /**
@@ -198,7 +353,9 @@ export class OrderService {
       this.stopNetworkPolling();
     }
     
-    console.log(`开始网络订单轮询，间隔: ${POLLING_INTERVAL}ms，当前时间: ${new Date().toISOString()}`);
+    // 使用更长的轮询间隔 (5秒)
+    const pollingInterval = 5000; // 5秒
+    console.log(`开始网络订单轮询，间隔: ${pollingInterval}ms，当前时间: ${new Date().toISOString()}`);
     
     // 立即执行一次
     console.log('立即执行第一次轮询');
@@ -207,7 +364,7 @@ export class OrderService {
     // 设置定时器
     this.networkPollingInterval = setInterval(() => {
       this.fetchOrdersFromNetworkAndProcess();
-    }, POLLING_INTERVAL);
+    }, pollingInterval);
   }
 
   /**
@@ -226,33 +383,82 @@ export class OrderService {
    */
   private static async fetchOrdersFromNetworkAndProcess() {
     try {
-      const timeRange = TimeUtils.getTimeRangeAroundNow();
-      const orders = await NetworkService.fetchOrdersFromNetwork(timeRange, this.addNetworkOrder.bind(this));
+      console.log('开始从网络获取订单...');
       
-      if (orders && orders.length > 0) {
-        console.log(`获取到 ${orders.length} 个订单，正在处理...`);
-        for (const order of orders) {
-          // 格式化并添加每个订单
-          const formattedOrder = await Formatters.formatNetworkOrder(order);
-          console.log(`订单 ${formattedOrder.order_num} 总准备时间: ${formattedOrder.total_prepare_time} 秒`);
-          await this.addNetworkOrder(formattedOrder);
-        }
+      // 获取当前时间范围
+      const timeRange = TimeUtils.getTimeRangeAroundNow();
+      
+      // 从网络获取订单，传递一个空函数作为onNewOrder回调
+      const orders = await NetworkService.fetchOrdersFromNetwork(timeRange, async () => {});
+      
+      if (!orders || orders.length === 0) {
+        console.log('没有获取到新订单');
+        return;
       }
+      
+      console.log(`从网络获取到 ${orders.length} 个订单`);
+      
+      // 处理每个订单
+      let newOrdersCount = 0;
+      
+      for (const order of orders) {
+        // 确保订单有ID
+        if (!order._id) {
+          console.error('网络订单缺少ID，跳过');
+          continue;
+        }
+        
+        // 检查是否已经处理过此订单
+        if (this.isOrderProcessed(order._id)) {
+          console.log(`订单 ${order.id} 已处理过，跳过`);
+          continue;
+        }
+        
+        // 检查订单是否已存在于网络订单列表中
+        const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === order.id);
+        if (existingOrderIndex !== -1) {
+          console.log(`订单 ${order.id} 已存在于网络订单列表中，跳过`);
+          continue;
+        }
+        
+        // 检查订单是否已存在于TCP订单列表中
+        const existingTcpOrderIndex = this.tcpOrders.findIndex((o) => o._id === order._id);
+        if (existingTcpOrderIndex !== -1) {
+          console.log(`订单 ${order.id} 已存在于TCP订单列表中，跳过`);
+          continue;
+        }
+        
+        // 格式化订单
+        const formattedOrder = await Formatters.formatNetworkOrder(order);
+        
+        // 添加新订单
+        await this.addNetworkOrder(formattedOrder);
+        newOrdersCount++;
+      }
+      
+      console.log(`成功添加了 ${newOrdersCount} 个新订单`);
     } catch (error) {
-      console.error('处理网络订单失败:', error);
+      console.error('从网络获取订单失败:', error);
     }
   }
 
   /**
    * 获取历史订单详情
    */
+  private static todayTimeRange: [string, string] = [
+    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+    new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+  ] as [string, string];
+
   static async getHistoryOrderDetails(): Promise<FormattedOrder[]> {
     try {
       // 获取原始历史订单数据
-      const rawOrders = await NetworkService.fetchHistoryOrders();
+      const rawOrders = await NetworkService.fetchHistoryOrders(this.todayTimeRange);
+      console.log("this.todayTimeRange",this.todayTimeRange)
       
       // 创建包含过滤后订单的结果对象
       const result = { orders: rawOrders };
+      
       
       // 格式化订单
       return await Formatters.formatOrders(result);

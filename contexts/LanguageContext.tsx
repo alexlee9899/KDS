@@ -24,9 +24,8 @@ const LanguageContext = createContext<LanguageContextType>({
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [language, setLanguage] = useState<SupportedLanguage>(
-    getDefaultLanguage()
-  );
+  const [language, setLanguage] =
+    useState<SupportedLanguage>(getDefaultLanguage());
 
   // 加载保存的语言设置
   useEffect(() => {

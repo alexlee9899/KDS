@@ -10,6 +10,7 @@ import { OrderService } from "../services/orderService";
 import { DistributionService, KDSRole } from "../services/distributionService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Network from "expo-network";
+
 interface OrderContextType {
   orders: FormattedOrder[];
   networkOrders: FormattedOrder[]; // 网络订单
@@ -35,6 +36,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     "connected" | "disconnected" | "unknown"
   >("unknown");
 
+  // 用于跟踪已分发的订单ID
+  const [distributedOrderIds] = useState<Set<string>>(new Set());
+
   // 获取KDS角色
   useEffect(() => {
     async function getKDSRole() {
@@ -49,6 +53,39 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     getKDSRole();
   }, []);
 
+  // 网络状态监控
+  useEffect(() => {
+    let networkCheckInterval: ReturnType<typeof setInterval>;
+
+    // 检查网络状态的函数
+    const checkNetworkStatus = async () => {
+      try {
+        const netState = await Network.getNetworkStateAsync();
+        if (netState.isConnected && netState.isInternetReachable) {
+          setNetworkStatus("connected");
+        } else {
+          setNetworkStatus("disconnected");
+        }
+      } catch (error) {
+        console.error("检查网络状态失败:", error);
+        setNetworkStatus("unknown");
+      }
+    };
+
+    // 初始检查
+    checkNetworkStatus();
+
+    // 设置定期检查 (每10秒检查一次)
+    networkCheckInterval = setInterval(checkNetworkStatus, 10000);
+
+    return () => {
+      // 清理定时器
+      if (networkCheckInterval) {
+        clearInterval(networkCheckInterval);
+      }
+    };
+  }, []);
+
   // 初始化订单系统
   useEffect(() => {
     const initSystem = async () => {
@@ -56,19 +93,54 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         console.log("初始化订单系统...");
         setLoading(true);
 
-        // 使用新的初始化方法，同时启动网络轮询和TCP服务器
+        // 先初始化OrderService
         await OrderService.initialize();
 
-        // 初始化分发服务
+        // 再初始化DistributionService
         await DistributionService.initialize();
 
         // 加载已保存的订单
         const savedNetworkOrders = await OrderService.loadNetworkOrders();
         const savedTcpOrders = await OrderService.loadTCPOrders();
 
-        setNetworkOrders(savedNetworkOrders);
-        setTcpOrders(savedTcpOrders);
-        setOrders([...savedNetworkOrders, ...savedTcpOrders]);
+        // 将所有现有订单ID添加到已分发集合中，避免重复分发
+        savedNetworkOrders.forEach((order) =>
+          distributedOrderIds.add(order.id)
+        );
+        savedTcpOrders.forEach((order) => distributedOrderIds.add(order.id));
+
+        // 设置订单更新回调函数 - 这是唯一的分发入口点
+        OrderService.setOrderUpdateCallback(async (updatedOrders) => {
+          console.log("收到订单更新，订单数量:", updatedOrders.length);
+
+          // 首先对所有订单进行去重
+          const uniqueOrders = [];
+          const seenIds = new Set();
+
+          for (const order of updatedOrders) {
+            if (!seenIds.has(order.id)) {
+              uniqueOrders.push(order);
+              seenIds.add(order.id);
+            }
+          }
+
+          // 区分网络订单和TCP订单
+          const networkOrdersList = uniqueOrders.filter(
+            (order) => order.source === "network"
+          );
+          const tcpOrdersList = uniqueOrders.filter(
+            (order) => order.source === "tcp"
+          );
+
+          setNetworkOrders(networkOrdersList);
+          setTcpOrders(tcpOrdersList);
+          setOrders(uniqueOrders);
+
+          // 注意：我们不再在这里分发订单，因为OrderService的addNetworkOrder方法
+          // 已经负责在添加新网络订单时调用DistributionService.processAndDistributeOrder
+          // 这样可以避免重复分发订单
+          console.log("订单状态已更新");
+        });
 
         setLoading(false);
       } catch (error) {
@@ -85,29 +157,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       OrderService.stopNetworkPolling(); // 停止网络轮询
       DistributionService.shutdown();
     };
-  }, []);
-
-  // 设置订单更新回调
-  useEffect(() => {
-    console.log("设置订单更新回调");
-
-    // 注册回调接收实时订单更新
-    OrderService.setOrderUpdateCallback((updatedOrders) => {
-      console.log("收到订单更新，订单数量:", updatedOrders.length);
-
-      // 区分网络订单和TCP订单
-      const networkOrdersList = updatedOrders.filter(
-        (order) => order.source === "network"
-      );
-      const tcpOrdersList = updatedOrders.filter(
-        (order) => order.source === "tcp"
-      );
-
-      setNetworkOrders(networkOrdersList);
-      setTcpOrders(tcpOrdersList);
-      setOrders(updatedOrders); // 所有订单合并显示
-    });
-  }, []);
+  }, [distributedOrderIds]);
 
   // 移除订单
   const removeOrder = useCallback(

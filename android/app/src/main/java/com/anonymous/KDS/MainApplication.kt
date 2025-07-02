@@ -1,6 +1,7 @@
 package com.anonymous.KDS
 
 import android.app.Application
+
 import android.content.res.Configuration
 import com.anonymous.KDS.KDSPackage
 

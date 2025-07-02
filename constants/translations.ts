@@ -3,6 +3,7 @@ export const translations = {
   zh: {
     // 导航
     newOrders: "新订单",
+    preOrders: "预订单",
     orderHistory: "订单历史",
     stockManagement: "库存管理",
     settings: "设置",
@@ -27,6 +28,10 @@ export const translations = {
     confirmComplete: "确认完成",
     confirmCancel: "确认取消",
     
+    // 登出相关
+    logoutConfirmTitle: "确认登出",
+    logoutConfirmMessage: "您确定要登出系统吗？",
+    
     // 订单来源
     kiosk: "自助点单",
     online: "线上订单",
@@ -39,12 +44,16 @@ export const translations = {
     language: "语言",
     chinese: "中文",
     english: "英文",
+    selectLanguage: "选择语言",
     resetSettings: "重置设置",
     systemInfo: "系统信息",
     systemVersion: "系统版本",
-    copyright: "© 2023 Pospal Australia Pty Ltd",
+    copyright: "© Vend88 Pty Ltd – 2025",
     confirm: "确认",
     confirmReset: "确定要重置所有设置吗？",
+    cardsPerRow: "每行显示卡片数量",
+    displaySettings: "显示设置",
+    applyChanges: "应用更改",
     
     // 库存管理
     stockList: "库存列表",
@@ -67,6 +76,19 @@ export const translations = {
     refillStockFailed: "补充库存失败",
     updateStockFailed: "更新库存失败",
     enterStockQuantity: "输入库存数量",
+    
+    // 店铺选择相关
+    selectShop: "选择店铺",
+    noShopsAvailable: "没有可用的店铺",
+    shopCode: "店铺码",
+    refreshList: "刷新列表",
+    currentShop: "当前店铺",
+    shopDescription: "店铺描述",
+    loadingShops: "加载店铺列表中",
+    shopSelectError: "获取店铺列表失败",
+    noShopSelected: "未选择店铺",
+    saveShopFailed: "保存店铺信息失败",
+    unauthorizedError: "未授权，请重新登录",
     
     // 准备时间更新相关
     updatePrepTime: "更新准备时间",
@@ -150,11 +172,42 @@ export const translations = {
     pleaseEnterIPAddress: "请输入IP地址",
     ipAlreadyAdded: "此IP已添加",
     recallOrder: "重新召回",
+    
+    // Dashboard相关
+    dashboard: "数据面板",
+    startDate: "开始日期",
+    endDate: "结束日期",
+    orderStatus: "订单状态",
+    orderSource: "订单来源",
+    orderSummary: "订单摘要",
+    totalOrders: "总订单数",
+    paidOrders: "已支付订单",
+    delayedOrders: "延迟订单",
+    cancelledOrders: "已取消订单",
+    paid: "已支付",
+    cancelled: "已取消",
+    other: "其他",
+    loading: "加载中...",
+    selectStartDate: "选择开始日期",
+    selectEndDate: "选择结束日期",
+    previousDay: "前一天",
+    nextDay: "后一天",
+    ordersProcessed: "已处理订单",
+    ordersDelayed: "延迟订单",
+    ordersCancelled: "已取消订单",
+    uber: "外卖订单",
+    source: "来源",
+    count: "数量",
+    percentage: "百分比",
+    days: "天",
+    day: "天",
+    today: "今天",
   },
   
   en: {
     // Navigation
     newOrders: "New Orders",
+    preOrders: "Pre Orders",
     orderHistory: "Order History",
     stockManagement: "Stock Management",
     settings: "Settings",
@@ -179,6 +232,10 @@ export const translations = {
     confirmComplete: "Confirm Complete",
     confirmCancel: "Confirm Cancel",
     
+    // Logout related
+    logoutConfirmTitle: "Logout Confirmation",
+    logoutConfirmMessage: "Are you sure you want to logout?",
+    
     // Order sources
     kiosk: "Kiosk",
     online: "Online",
@@ -191,12 +248,16 @@ export const translations = {
     language: "Language",
     chinese: "Chinese",
     english: "English",
+    selectLanguage: "Select Language",
     resetSettings: "Reset Settings",
     systemInfo: "System Information",
     systemVersion: "System Version",
-    copyright: "© 2023 Pospal Australia Pty Ltd",
+    copyright: "© Vend88 Pty Ltd – 2025",
     confirm: "Confirm",
     confirmReset: "Are you sure you want to reset all settings?",
+    cardsPerRow: "Cards Per Row",
+    displaySettings: "Display Settings",
+    applyChanges: "Apply Changes",
     
     // Stock management
     stockList: "Stock List",
@@ -213,14 +274,27 @@ export const translations = {
     stockHistory: "Stock History",
     noProducts: "No Products",
     enterValidStock: "Please enter a valid stock quantity",
-    stockUpdatedTo: "Products stock is updated to",
+    stockUpdatedTo: "Stock updated to",
     markedAsSoldOut: "Selected products marked as sold out",
     markSoldOutFailed: "Failed to mark as sold out",
     refillStockFailed: "Failed to refill stock",
     updateStockFailed: "Failed to update stock",
     enterStockQuantity: "Enter stock quantity",
     
-    // Prep time update related
+    // 店铺选择相关
+    selectShop: "Select Shop",
+    noShopsAvailable: "No shops available",
+    shopCode: "Shop Code",
+    refreshList: "Refresh List",
+    currentShop: "Current Shop",
+    shopDescription: "Shop Description",
+    loadingShops: "Loading shops",
+    shopSelectError: "Failed to get shop list",
+    noShopSelected: "No shop selected",
+    saveShopFailed: "Failed to save shop information",
+    unauthorizedError: "Unauthorized, please login again",
+    
+    // 准备时间更新相关
     updatePrepTime: "Update Prep Time",
     enterPrepTime: "Enter preparation time",
     enterValidPrepTime: "Please enter a valid preparation time",
@@ -237,7 +311,7 @@ export const translations = {
     carbs: "Carbs",
     
     // Others
-    noOrders: "No Orders...",
+    noOrders: "Waiting for orders...",
     todayOrderHistory: "Today's Order History",
     save: "Save",
     edit: "Edit",
@@ -290,6 +364,36 @@ export const translations = {
     seconds: "Seconds",
     prepTime: "Prep Time",
     remaining: "Remaining Time",
+    
+    // Dashboard related
+    dashboard: "Dashboard",
+    startDate: "Start Date",
+    endDate: "End Date",
+    orderStatus: "Order Status",
+    orderSource: "Order Source",
+    orderSummary: "Order Summary",
+    totalOrders: "Total Orders",
+    paidOrders: "Paid Orders",
+    delayedOrders: "Delayed Orders",
+    cancelledOrders: "Cancelled Orders",
+    paid: "Paid",
+    cancelled: "Cancelled",
+    other: "Other",
+    loading: "Loading...",
+    selectStartDate: "Select Start Date",
+    selectEndDate: "Select End Date",
+    previousDay: "Previous Day",
+    nextDay: "Next Day",
+    ordersProcessed: "Orders Processed",
+    ordersDelayed: "Orders Delayed",
+    ordersCancelled: "Orders Cancelled",
+    uber: "Uber",
+    source: "Source",
+    count: "Count",
+    percentage: "Percentage",
+    days: "Days",
+    day: "Day",
+    today: "Today",
   }
 };
 
